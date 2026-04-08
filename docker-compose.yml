@@ -2,12 +2,16 @@ services:
   api:
     build:
       context: .
+    cpus: "1.0"
+    mem_limit: "512m"
     ports:
       - "8000:8000"
 
   locust:
     build:
       context: ./loadtest
+    cpus: "1.0"
+    mem_limit: "512m"
     depends_on:
       - api
     ports:
