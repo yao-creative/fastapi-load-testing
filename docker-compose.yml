@@ -1,0 +1,25 @@
+services:
+  api:
+    build:
+      context: .
+    ports:
+      - "8000:8000"
+
+  locust:
+    build:
+      context: ./loadtest
+    depends_on:
+      - api
+    ports:
+      - "8089:8089"
+    environment:
+      # Locust reads LOCUST_HOST as its default target host.
+      - LOCUST_HOST=http://api:8000
+    command: >
+      locust
+      -f /mnt/locust/locustfile.py
+      --web-host 0.0.0.0
+      --web-port 8089
+    volumes:
+      - ./loadtest:/mnt/locust:ro
+
