@@ -42,3 +42,10 @@
  - Add matching Locust tasks in `loadtest/locustfile.py`.
  - Optionally add a multi-worker profile using gunicorn + `uvicorn.workers.UvicornWorker`.
  
+
+
+## Reference Articles:
+1. https://www.techbuddies.io/2026/01/05/top-7-fastapi-asyncio-best-practices-for-non-blocking-web-apis/#:~:text=Before%20I%20started%20applying%20any,schedules%20all%20your%20async%20work.
+2. https://dev.to/imsushant12/asyncio-architecture-in-python-event-loops-tasks-and-futures-explained-4pn3
+3. https://medium.com/@iklobato/mastering-gunicorn-and-uvicorn-the-right-way-to-deploy-fastapi-applications-aaa06849841e
+4. https://www.youtube.com/watch?v=esIEW0aEKqk 
