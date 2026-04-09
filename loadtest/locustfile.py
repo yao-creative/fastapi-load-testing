@@ -3,11 +3,16 @@ import os
 from locust import HttpUser, between, task
 
 
+SLEEP_SECONDS = int(os.getenv("LOCUST_SLEEP_SECONDS", "1"))
+
+
 class ApiUser(HttpUser):
     """
-    Minimal Locust user hitting /health.
+    Mixed traffic profile.
 
-    TODO (you implement): add tasks for each endpoint variant and tune weights.
+    This is useful for demonstrating that one blocking endpoint can raise
+    latency for unrelated requests like /health when the app runs with a
+    single worker.
     """
 
     wait_time = between(0.1, 0.5)
@@ -19,39 +24,21 @@ class ApiUser(HttpUser):
     def health(self):
         self.client.get("/health")
 
-    # TODO (you implement): asyncio-variation tasks
-    #
-    # @task
-    # def sleep_blocking(self):
-    #     self.client.get("/sleep/blocking")
-    #
-    # @task
-    # def sleep_async(self):
-    #     self.client.get("/sleep/async")
-    #
-    # @task
-    # def cpu_inline(self):
-    #     self.client.get("/cpu/inline")
-    #
-    # @task
-    # def cpu_to_thread(self):
-    #     self.client.get("/cpu/to-thread")
-    #
-    # @task
-    # def upstream_sync(self):
-    #     self.client.get("/upstream/sync")
-    #
-    # @task
-    # def upstream_async(self):
-    #     self.client.get("/upstream/async")
-    #
-    # @task
-    # def fanout_sequential(self):
-    #     self.client.get("/fanout/sequential")
-    #
-    # @task
-    # def fanout_gather(self):
-    #     self.client.get("/fanout/gather")
+    @task(1)
+    def sleep_blocking(self):
+        self.client.get(
+            "/sleep/blocking",
+            params={"seconds": SLEEP_SECONDS},
+            name="/sleep/blocking",
+        )
+
+    @task(1)
+    def sleep_async(self):
+        self.client.get(
+            "/sleep/async",
+            params={"seconds": SLEEP_SECONDS},
+            name="/sleep/async",
+        )
 
 
 def _debug_locust_host():
@@ -60,4 +47,3 @@ def _debug_locust_host():
     if host:
         return host
     return None
-

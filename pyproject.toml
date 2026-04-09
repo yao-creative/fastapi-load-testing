@@ -16,6 +16,7 @@
    "gunicorn>=23.0",
  ]
 
- [tool.uv]
- dev-dependencies = []
-
+[tool.uv]
+dev-dependencies = [
+  "pytest>=9.0",
+]

@@ -1,8 +1,7 @@
-import asyncio
- 
 from fastapi import FastAPI
- 
- 
+import asyncio
+import time
+
 app = FastAPI(title="fastapi-load-testing", version="0.1.0")
  
  
@@ -11,25 +10,59 @@ async def health():
     return {"status": "ok"}
  
  
-# TODO (you implement): asyncio/load-testing endpoints
+# TODO lab outline: keep these as comments until you implement the experiments.
 #
-# - Blocking vs non-blocking
-#   - GET /sleep/blocking   -> time.sleep(...)
-#   - GET /sleep/async      -> await asyncio.sleep(...)
+# Learning goal 1: show what blocks the event loop inside one worker.
+# - GET /sleep/blocking
+#   - Use `time.sleep(...)`.
+#   - Measure how badly unrelated requests suffer under concurrency.
+# - GET /sleep/async
+#   - Use `await asyncio.sleep(...)`.
+#   - Compare p95/p99 and throughput against `/sleep/blocking`.
+
+@app.get("/sleep/blocking")
+async def sleep_blocking(seconds: int = 1):
+    print(f"/sleep/blocking: Sleeping for {seconds} seconds")
+    time.sleep(seconds)
+    return {"status": "ok"}
+
+@app.get("/sleep/async")
+async def sleep_async(seconds: int = 1):
+    print(f"/sleep/async: Sleeping for {seconds} seconds")
+    await asyncio.sleep(seconds)
+    return {"status": "ok"}
+
 #
-# - CPU-bound inline vs offloaded
-#   - GET /cpu/inline       -> CPU loop inline (blocks event loop within worker)
-#   - GET /cpu/to-thread    -> await asyncio.to_thread(...)
+# Learning goal 2: compare CPU work inline versus offloaded.
+# - GET /cpu/inline
+#   - Run a CPU-heavy loop directly in the request handler.
+#   - Confirm that async syntax does not save CPU-bound work.
+# - GET /cpu/to-thread
+#   - Offload the same blocking CPU function with `asyncio.to_thread(...)`.
+#   - Measure whether responsiveness improves for other requests.
 #
-# - Sync vs async outbound HTTP (to an internal target endpoint)
-#   - GET /upstream/target  -> simple async endpoint with controlled delay
-#   - GET /upstream/sync    -> requests.get("http://127.0.0.1:8000/upstream/target")
-#   - GET /upstream/async   -> await httpx.AsyncClient().get(...)
+# Learning goal 3: compare sync and async outbound I/O.
+# - GET /upstream/target
+#   - Simple delayed endpoint used as the upstream target.
+# - GET /upstream/sync
+#   - Call the target with a blocking client such as `requests`.
+# - GET /upstream/async
+#   - Call the target with an async client such as `httpx.AsyncClient`.
+# - Record what changes in concurrency, queueing, and tail latency.
 #
-# - Sequential vs parallel fan-out
-#   - GET /fanout/sequential -> await subtask(); await subtask(); ...
-#   - GET /fanout/gather     -> await asyncio.gather(...)
+# Learning goal 4: compare sequential and concurrent fan-out.
+# - GET /fanout/sequential
+#   - Await each subtask one after another.
+# - GET /fanout/gather
+#   - Run the same subtasks with `asyncio.gather(...)`.
+# - Add timestamps so the scheduling difference is visible in logs.
 #
-# Optional: resource contention demo
-# - Add an asyncio.Semaphore to simulate a bounded pool (DB pool-like).
+# Learning goal 5: simulate bounded shared resources.
+# - Add an `asyncio.Semaphore` around a section that represents a DB pool or
+#   external service bottleneck.
+# - Test what happens when concurrent requests exceed the artificial capacity.
+#
+# Deployment experiment notes:
+# - Re-run the same endpoints with one worker and then with multiple workers.
+# - Check which failures come from bad app behavior versus worker-count limits.
  
