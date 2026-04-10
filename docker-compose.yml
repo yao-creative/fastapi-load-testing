@@ -6,21 +6,23 @@ services:
     mem_limit: "512m"
     ports:
       - "8000:8000"
-    command:
-      - uv
-      - run
-      - uvicorn
-      - app.main:app
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8000"
-      - --reload
-      - --reload-dir
-      - /app/app
+    # Centralized command (used for both `up` and `watch`)
+    command: &api_command
+      [
+        "uv",
+        "run",
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--workers",
+        "2",
+      ]
     develop:
       watch:
-        - action: sync
+        - action: sync+restart
           path: ./app
           target: /app/app
         - action: rebuild
@@ -49,4 +51,3 @@ services:
       --web-port 8089
     volumes:
       - ./loadtest:/mnt/locust:ro
-

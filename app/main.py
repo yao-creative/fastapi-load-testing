@@ -32,31 +32,46 @@ async def sleep_async(seconds: int = 1):
     await asyncio.sleep(seconds)
     return {"status": "ok"}
 
+
+def run_cpu_work(iterations: int) -> int:
+    total = 0
+    for i in range(iterations):
+        total += (i % 97) * (i % 89)
+    return total
+
+
 #
 # Learning goal 2: compare CPU work inline versus offloaded.
 # - GET /cpu/inline
 #   - Run a CPU-heavy loop directly in the request handler.
 #   - Confirm that async syntax does not save CPU-bound work.
+@app.get("/cpu/inline")
+async def cpu_inline(iterations: int = 25_000_000):
+    print(f"/cpu/inline: Running CPU-heavy loop for {iterations} iterations")
+    checksum = run_cpu_work(iterations)
+    return {"status": "ok", "iterations": iterations, "checksum": checksum}
+
+
 # - GET /cpu/to-thread
 #   - Offload the same blocking CPU function with `asyncio.to_thread(...)`.
 #   - Measure whether responsiveness improves for other requests.
-#
-# Learning goal 3: compare sync and async outbound I/O.
-# - GET /upstream/target
-#   - Simple delayed endpoint used as the upstream target.
-# - GET /upstream/sync
-#   - Call the target with a blocking client such as `requests`.
-# - GET /upstream/async
-#   - Call the target with an async client such as `httpx.AsyncClient`.
-# - Record what changes in concurrency, queueing, and tail latency.
-#
-# Learning goal 4: compare sequential and concurrent fan-out.
+@app.get("/cpu/to-thread")
+async def cpu_to_thread(iterations: int = 25_000_000):
+    print(f"/cpu/to-thread: Running CPU-heavy loop for {iterations} iterations")
+    checksum = await asyncio.to_thread(run_cpu_work, iterations)
+    return {"status": "ok", "iterations": iterations, "checksum": checksum}
+
+
+# Learning goal 3: compare sequential and concurrent fan-out.
 # - GET /fanout/sequential
 #   - Await each subtask one after another.
+@app.get("/fanout/sequential"):
+async def 
 # - GET /fanout/gather
 #   - Run the same subtasks with `asyncio.gather(...)`.
 # - Add timestamps so the scheduling difference is visible in logs.
 #
+
 # Learning goal 5: simulate bounded shared resources.
 # - Add an `asyncio.Semaphore` around a section that represents a DB pool or
 #   external service bottleneck.
