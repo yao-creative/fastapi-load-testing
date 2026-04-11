@@ -10,9 +10,9 @@ class ApiUser(HttpUser):
     """
     Mixed traffic profile.
 
-    This is useful for demonstrating that one blocking endpoint can raise
-    latency for unrelated requests like /health when the app runs with a
-    single worker.
+    With a single Uvicorn worker, a blocking endpoint can raise latency for
+    unrelated requests like /health. With multiple workers (see docker-compose),
+    those effects change; compare runs with `--workers 1` vs `--workers 2`.
     """
 
     wait_time = between(0.1, 0.5)

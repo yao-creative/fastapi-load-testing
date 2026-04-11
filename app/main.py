@@ -1,15 +1,85 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 import asyncio
 import time
 
 app = FastAPI(title="fastapi-load-testing", version="0.1.0")
- 
- 
+
+SEMAPHORE_CAPACITY = 2
+resource_semaphore = asyncio.Semaphore(SEMAPHORE_CAPACITY)
+QUEUE_MAXSIZE = 100
+QUEUE_WORKER_COUNT = 2
+job_queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=QUEUE_MAXSIZE)
+queue_worker_tasks: list[asyncio.Task] = []
+queue_next_job_id = 0
+queue_enqueued_total = 0
+queue_processed_total = 0
+queue_failed_total = 0
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
- 
- 
+
+
+async def queue_worker(worker_id: int) -> None:
+    global queue_failed_total
+    global queue_processed_total
+
+    print(f"/queue worker {worker_id}: started")
+    while True:
+        job = await job_queue.get()
+        try:
+            work_ms = job["work_ms"]
+            job_id = job["job_id"]
+            print(f"/queue worker {worker_id}: start job_id={job_id} work_ms={work_ms}")
+            await asyncio.sleep(work_ms / 1000)
+            queue_processed_total += 1
+            print(f"/queue worker {worker_id}: end job_id={job_id}")
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            queue_failed_total += 1
+            print(f"/queue worker {worker_id}: failed job={job} exc={exc!r}")
+        finally:
+            job_queue.task_done()
+
+
+@app.on_event("startup")
+async def startup_queue_workers() -> None:
+    queue_worker_tasks.clear()
+    for worker_id in range(1, QUEUE_WORKER_COUNT + 1):
+        queue_worker_tasks.append(asyncio.create_task(queue_worker(worker_id)))
+
+
+@app.on_event("shutdown")
+async def shutdown_queue_workers() -> None:
+    for task in queue_worker_tasks:
+        task.cancel()
+    if queue_worker_tasks:
+        await asyncio.gather(*queue_worker_tasks, return_exceptions=True)
+    queue_worker_tasks.clear()
+
+
+async def enqueue_jobs(n: int, work_ms: int) -> list[int]:
+    global queue_enqueued_total
+    global queue_next_job_id
+
+    enqueued_job_ids: list[int] = []
+    for _ in range(n):
+        queue_next_job_id += 1
+        job_id = queue_next_job_id
+        job = {
+            "job_id": job_id,
+            "work_ms": work_ms,
+            "enqueued_at_ms": round(time.time() * 1000),
+        }
+        await job_queue.put(job)
+        queue_enqueued_total += 1
+        enqueued_job_ids.append(job_id)
+
+    return enqueued_job_ids
+
+
 # TODO lab outline: keep these as comments until you implement the experiments.
 #
 # Learning goal 1: show what blocks the event loop inside one worker.
@@ -65,12 +135,78 @@ async def cpu_to_thread(iterations: int = 25_000_000):
 # Learning goal 3: compare sequential and concurrent fan-out.
 # - GET /fanout/sequential
 #   - Await each subtask one after another.
-@app.get("/fanout/sequential"):
-async def 
+async def fanout_worker(task_id: int, delay_ms: int = 300):
+    started_at = time.perf_counter()
+    print(f"/fanout worker {task_id}: start delay_ms={delay_ms}")
+    await asyncio.sleep(delay_ms / 1000)
+    ended_at = time.perf_counter()
+    duration_ms = round((ended_at - started_at) * 1000, 2)
+    print(f"/fanout worker {task_id}: end duration_ms={duration_ms}")
+    return {"task_id": task_id, "duration_ms": duration_ms}
+
+
+@app.get("/fanout/sequential")
+async def fanout_sequential(num_tasks: int = 15, delay_ms: int = 300):
+    request_started_at = time.perf_counter()
+    results = []
+    for task_id in range(1, num_tasks + 1):
+        results.append(await fanout_worker(task_id=task_id, delay_ms=delay_ms))
+
+    total_duration_ms = round((time.perf_counter() - request_started_at) * 1000, 2)
+    print(
+        f"/fanout/sequential: num_tasks={num_tasks} delay_ms={delay_ms} "
+        f"total_duration_ms={total_duration_ms}"
+    )
+    return {
+        "status": "ok",
+        "num_tasks": num_tasks,
+        "delay_ms": delay_ms,
+        "total_duration_ms": total_duration_ms,
+        "results": results,
+    }
+# Learning goal 4: practice time budgets, timeouts, and cancellation.
+# - GET /timeout/slow
+#   - Run one slow awaitable behind `asyncio.timeout(...)`.
+#   - Return whether the inner operation finished or timed out.
+# - GET /timeout/fanout
+#   - Fan out multiple subtasks, then apply a request-level timeout budget.
+#   - Observe which subtasks are cancelled when the budget expires.
+# - Add logs in `try/except/finally` so you can see:
+#   - when cancellation is raised,
+#   - whether cleanup still runs,
+#   - and whether any work leaks after the request is over.
+#
+# Concept to internalize:
+# - Timeouts are not just latency controls; they are cancellation boundaries.
+# - Good async code must clean up correctly when cancelled midway through work.
+#
+
+
+
 # - GET /fanout/gather
 #   - Run the same subtasks with `asyncio.gather(...)`.
 # - Add timestamps so the scheduling difference is visible in logs.
 #
+@app.get("/fanout/gather")
+async def fanout_gather(num_tasks: int = 15, delay_ms: int = 300):
+    request_started_at = time.perf_counter()
+    results = await asyncio.gather(
+        *(fanout_worker(task_id=task_id, delay_ms=delay_ms) for task_id in range(1, num_tasks + 1))
+    )
+
+    total_duration_ms = round((time.perf_counter() - request_started_at) * 1000, 2)
+    print(
+        f"/fanout/gather: num_tasks={num_tasks} delay_ms={delay_ms} "
+        f"total_duration_ms={total_duration_ms}"
+    )
+    return {
+        "status": "ok",
+        "num_tasks": num_tasks,
+        "delay_ms": delay_ms,
+        "total_duration_ms": total_duration_ms,
+        "results": results,
+    }
+
 
 # Learning goal 5: simulate bounded shared resources.
 # - Add an `asyncio.Semaphore` around a section that represents a DB pool or
@@ -80,4 +216,197 @@ async def
 # Deployment experiment notes:
 # - Re-run the same endpoints with one worker and then with multiple workers.
 # - Check which failures come from bad app behavior versus worker-count limits.
- 
+
+async def semaphore_task(hold_seconds: int = 5):
+    started_at = time.perf_counter()
+    print(f"/bounded/semaphore internal: start hold_seconds={hold_seconds}")
+    await asyncio.sleep(hold_seconds)
+    duration_ms = round((time.perf_counter() - started_at) * 1000, 2)
+    print(f"/bounded/semaphore internal: end duration_ms={duration_ms}")
+    return duration_ms
+
+
+@app.get("/bounded/semaphore")
+async def bounded_semaphore(hold_seconds: int = 5, outside_seconds: int = 0):
+    request_started_at = time.perf_counter()
+
+    if outside_seconds > 0:
+        await asyncio.sleep(outside_seconds)
+
+    wait_started_at = time.perf_counter()
+    async with resource_semaphore:
+        wait_ms = round((time.perf_counter() - wait_started_at) * 1000, 2)
+        in_cs_ms = await semaphore_task(hold_seconds=hold_seconds)
+
+    total_ms = round((time.perf_counter() - request_started_at) * 1000, 2)
+    print(
+        f"/bounded/semaphore: capacity={SEMAPHORE_CAPACITY} "
+        f"hold_seconds={hold_seconds} outside_seconds={outside_seconds} "
+        f"wait_ms={wait_ms} in_cs_ms={in_cs_ms} total_ms={total_ms}"
+    ) 
+    return {
+        "status": "ok",
+        "capacity": SEMAPHORE_CAPACITY,
+        "hold_seconds": hold_seconds,
+        "outside_seconds": outside_seconds,
+        "wait_ms": wait_ms,
+        "in_cs_ms": in_cs_ms,
+        "total_ms": total_ms,
+    }
+
+# Learning Goal 6: Producer- Consumer Queues
+# - POST /queue/enqueue
+#   - Enqueue N jobs into an in-memory `asyncio.Queue` and return immediately.
+#   - Observe that background workers can keep consuming after the request ends.
+# - POST /queue/drain
+#   - Enqueue N jobs, then `await queue.join()` before returning.
+#   - Compare request latency versus `/queue/enqueue`.
+# - GET /queue/stats
+#   - Return current queue size and worker counters for debugging.
+#
+# Important teaching point:
+# - `asyncio.Queue` coordinates producers and consumers inside one process and
+#   can provide natural backpressure when `maxsize` is set.
+# - `queue.join()` is a completion barrier for queued work; it is not what
+#   starts or stops worker tasks.
+#
+# Future implementation notes:
+# - Create one shared queue per process and start a fixed number of worker tasks
+#   at app startup.
+# - Under multiple Uvicorn workers, each process has its own queue and workers.
+
+
+@app.post("/queue/enqueue")
+async def queue_enqueue(
+    n: int = Query(default=10, ge=1, le=500),
+    work_ms: int = Query(default=250, ge=1, le=60_000),
+):
+    request_started_at = time.perf_counter()
+    job_ids = await enqueue_jobs(n=n, work_ms=work_ms)
+    request_duration_ms = round((time.perf_counter() - request_started_at) * 1000, 2)
+    print(
+        f"/queue/enqueue: n={n} work_ms={work_ms} "
+        f"queue_size={job_queue.qsize()} request_duration_ms={request_duration_ms}"
+    )
+    return {
+        "status": "accepted",
+        "mode": "enqueue_only",
+        "enqueued": len(job_ids),
+        "job_ids": job_ids,
+        "work_ms": work_ms,
+        "queue_size": job_queue.qsize(),
+        "worker_count": len(queue_worker_tasks),
+        "request_duration_ms": request_duration_ms,
+    }
+
+
+@app.post("/queue/drain")
+async def queue_drain(
+    n: int = Query(default=10, ge=1, le=500),
+    work_ms: int = Query(default=250, ge=1, le=60_000),
+):
+    request_started_at = time.perf_counter()
+    job_ids = await enqueue_jobs(n=n, work_ms=work_ms)
+    enqueue_duration_ms = round((time.perf_counter() - request_started_at) * 1000, 2)
+    await job_queue.join()
+    total_duration_ms = round((time.perf_counter() - request_started_at) * 1000, 2)
+    print(
+        f"/queue/drain: n={n} work_ms={work_ms} "
+        f"enqueue_duration_ms={enqueue_duration_ms} total_duration_ms={total_duration_ms}"
+    )
+    return {
+        "status": "ok",
+        "mode": "enqueue_and_wait_for_drain",
+        "enqueued": len(job_ids),
+        "job_ids": job_ids,
+        "work_ms": work_ms,
+        "queue_size": job_queue.qsize(),
+        "worker_count": len(queue_worker_tasks),
+        "enqueue_duration_ms": enqueue_duration_ms,
+        "total_duration_ms": total_duration_ms,
+    }
+
+
+@app.get("/queue/stats")
+async def queue_stats():
+    return {
+        "status": "ok",
+        "queue_size": job_queue.qsize(),
+        "queue_maxsize": job_queue.maxsize,
+        "worker_count": len(queue_worker_tasks),
+        "worker_tasks_running": sum(not task.done() for task in queue_worker_tasks),
+        "enqueued_total": queue_enqueued_total,
+        "processed_total": queue_processed_total,
+        "failed_total": queue_failed_total,
+    }
+
+# Learning Goal 6.2 Simulating Producer and consumer on a qQueue
+async def _simulate_producer(q: asyncio.Queue, seconds: float, num_items: int) -> None:
+    for i in range(num_items):
+        await q.put(i)
+        print(f"Produced item {i}")
+        await asyncio.sleep(seconds)
+    await q.put(None)
+
+
+async def _simulate_consumer(q: asyncio.Queue, seconds: float) -> None:
+    while True:
+        item = await q.get()
+        try:
+            if item is None:
+                break
+            print(f"Consumed {item}")
+            await asyncio.sleep(seconds)
+        finally:
+            q.task_done()
+
+
+@app.get("/simulate/queue")
+async def simulate_queue(seconds: int = 2, num_items: int = 5):
+    q: asyncio.Queue = asyncio.Queue()
+    consumer_task = asyncio.create_task(_simulate_consumer(q, float(seconds)))
+    await _simulate_producer(q, float(seconds), num_items)
+    await q.join()
+    await consumer_task
+    return {"status": "ok", "num_items": num_items}
+
+
+
+# Learning goal 7: compare failure propagation in `asyncio.gather(...)`
+# versus structured concurrency with `asyncio.TaskGroup`.
+# - GET /fanout/gather-fail
+#   - Start multiple subtasks where one fails after a delay.
+#   - Observe whether sibling subtasks keep running or how exceptions surface.
+# - GET /fanout/taskgroup-fail
+#   - Run the same workload under `asyncio.TaskGroup`.
+#   - Observe how sibling tasks are cancelled and how the failure is reported.
+# - Return enough metadata to answer:
+#   - which task failed first,
+#   - which tasks completed,
+#   - which tasks were cancelled,
+#   - and how long the request ran before failing.
+#
+# Concept to internalize:
+# - Concurrency is not just about speed; failure behavior is part of the API contract.
+# - `gather(...)` and `TaskGroup` can produce very different cleanup behavior.
+#
+
+
+# Learning goal 8: practice shared mutable state, race conditions, and locks.
+# - POST /state/increment/unsafe
+#   - Read a shared counter, yield, then write back without protection.
+#   - Under concurrent requests, show lost updates.
+# - POST /state/increment/locked
+#   - Protect the same critical section with `asyncio.Lock`.
+#   - Compare correctness and latency against the unsafe version.
+# - GET /state/value
+#   - Return the current in-memory counter for debugging.
+#
+# Important teaching point:
+# - Even on one event loop thread, async code can still race if it yields between
+#   read-modify-write steps.
+# - `asyncio.Lock` protects coroutine interleavings inside one process; it does not
+#   synchronize across multiple Uvicorn workers.
+#
+# Future lab stub:
+# - Producer/consumer endpoints should live here once you implement Learning Goal 6.

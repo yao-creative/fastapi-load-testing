@@ -6,7 +6,10 @@ services:
     mem_limit: "512m"
     ports:
       - "8000:8000"
-    # Centralized command (used for both `up` and `watch`)
+    # Bind-mount app code; pair with `develop.watch` restart so workers reload without `--reload`.
+    volumes:
+      - ./app:/app/app
+    # `--reload` is incompatible with `--workers`; use two worker processes as in the Dockerfile.
     command: &api_command
       [
         "uv",

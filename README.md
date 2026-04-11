@@ -1,6 +1,6 @@
 # Async Concurrent Refresher
 
-Async, Concurrent Refresher since Networks Class in C 4 years ago.
+Async, Concurrent Refresher to rigorously check if I understand every single configuration since Networks Class 4 years ago and adhoc coding.
 
 
 ## fastapi-load-testing (bare minimum)
@@ -14,9 +14,18 @@ Endpoint implementations for asyncio variations are intentionally left to you (s
 
 ## Docs
 
-- [docs/00-asyncio-sequence-diagrams.md](/Users/yao/projects/fastapi-load-testing/docs/00-asyncio-sequence-diagrams.md)
-- [docs/01-experiment-sleep-blocking-vs-async.md](/Users/yao/projects/fastapi-load-testing/docs/01-experiment-sleep-blocking-vs-async.md)
-- [docs/02-experiment-cpu-inline-vs-to-thread.md](/Users/yao/projects/fastapi-load-testing/docs/02-experiment-cpu-inline-vs-to-thread.md)
+- [docs/tutorials/00-asyncio-sequence-diagrams.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/00-asyncio-sequence-diagrams.md)
+- [docs/tutorials/01-experiment-sleep-blocking-vs-async.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/01-experiment-sleep-blocking-vs-async.md)
+- [docs/tutorials/02-experiment-cpu-inline-vs-to-thread.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/02-experiment-cpu-inline-vs-to-thread.md)
+- [docs/tutorials/03-experiment-fanout-sequential-vs-gather.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/03-experiment-fanout-sequential-vs-gather.md)
+- [docs/tutorials/04-producer-consumer-pattern.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/04-producer-consumer-pattern.md)
+- [docs/tutorials/05-experiment-bounded-resource-semaphore.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/05-experiment-bounded-resource-semaphore.md)
+- [docs/tutorials/06-experiment-producer-consumer-asyncio-queue.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/06-experiment-producer-consumer-asyncio-queue.md)
+- [docs/tutorials/07-experiment-timeout-and-cancellation.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/07-experiment-timeout-and-cancellation.md)
+- [docs/tutorials/08-experiment-gather-vs-taskgroup-failure-propagation.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/08-experiment-gather-vs-taskgroup-failure-propagation.md)
+- [docs/tutorials/09-experiment-shared-state-race-and-lock.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/09-experiment-shared-state-race-and-lock.md)
+- [docs/frontier-ai-lab-application-examples.md](/Users/yao/projects/fastapi-load-testing/docs/frontier-ai-lab-application-examples.md)
+- [docs/asyncio-leveling-rubric.md](/Users/yao/projects/fastapi-load-testing/docs/asyncio-leveling-rubric.md)
 
 ## Local (uv)
 - Install deps and create a venv:
