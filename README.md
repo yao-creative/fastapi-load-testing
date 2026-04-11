@@ -1,7 +1,6 @@
 # Async Concurrent Refresher
 
-Async, Concurrent Refresher to rigorously check if I understand every single configuration since Networks Class 4 years ago and adhoc coding.
-
+Async, Concurrent Refresher to rigorously check if I understand async concepts.
 
 ## fastapi-load-testing (bare minimum)
 

@@ -13,6 +13,28 @@ This rubric is intentionally scoped to the topics in this repo:
 - shared-state correctness and backpressure
 
 
+```
+Need to fan out within one request?
+  → asyncio.gather() or TaskGroup
+
+Need structured fan-out with clean exception handling?
+  → TaskGroup (Python 3.11+) — cancels siblings on first failure
+
+Need to limit concurrency to protect downstream?
+  → asyncio.Semaphore
+
+Need producer/consumer or background draining?
+  → asyncio.Queue + worker pool
+
+Have blocking I/O (legacy sync lib, file read)?
+  → asyncio.to_thread()
+
+Have CPU-bound work that must be parallel?
+  → ProcessPoolExecutor or separate service
+
+Need more request throughput, not lower latency?
+  → more Uvicorn workers (separate processes)```
+
 ## How to use this rubric
 
 Use the highest level where most statements are consistently true for you in practice, not just in theory.

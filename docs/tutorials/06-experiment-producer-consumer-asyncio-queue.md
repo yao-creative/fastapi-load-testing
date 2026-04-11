@@ -120,10 +120,60 @@ Return from enqueue endpoints:
 - With small `maxsize`, producers will block sooner, increasing request latency but preventing unbounded memory growth.
 - Increasing worker count reduces drain time only if work yields (async sleep / I/O). For CPU-bound work, adding async workers won’t help without offloading.
 
+### Why use this pattern instead of plain `await` in the request?
+
+The advantage is not "more async." The advantage is **decoupling** and **control**.
+
+- Plain `await` in a request means the request itself owns the work and usually waits for it to finish before responding.
+- Producer-consumer means the request submits work into a queue, and separate long-lived workers process that work over time.
+- The queue gives you a buffer for traffic spikes.
+- A fixed worker count gives you an explicit concurrency limit.
+- `maxsize` gives you backpressure so producers slow down instead of letting backlog grow forever.
+- `queue.join()` gives you an optional completion barrier when you do want to wait for all queued work.
+
+Mental model:
+
+- plain `await`: "this request does its own work"
+- producer-consumer: "this request submits work to a small in-process work system"
+
 ### Common pitfalls
 
 - Forgetting `task_done()` causes `join()` to hang forever.
 - Creating workers per request spawns unbounded background tasks and breaks the experiment.
+
+
+## 6.1 Observed output from the toy endpoint
+
+Example output:
+
+```text
+api-1     | INFO:     Application startup complete.
+api-1     | /queue worker 1: started
+api-1     | /queue worker 2: started
+api-1     | Produced item 0
+api-1     | Consumed 0
+api-1     | Produced item 1
+api-1     | Consumed 1
+api-1     | Produced item 2
+api-1     | Consumed 2
+api-1     | Produced item 3
+api-1     | Consumed 3
+api-1     | Produced item 4
+api-1     | Consumed 4
+api-1     | INFO:     192.168. ...
+```
+
+How to read this:
+
+- `Application startup complete` means FastAPI/Uvicorn has finished startup hooks.
+- `/queue worker 1: started` and `/queue worker 2: started` come from the app-level background workers created at startup for the `/queue/enqueue` and `/queue/drain` experiment.
+- `Produced item X` and `Consumed X` come from the separate toy `/simulate/queue` endpoint.
+- Those `Produced` and `Consumed` lines do **not** mean the startup `/queue worker` tasks handled those items. The toy endpoint creates its own local queue and its own one-off consumer task.
+
+This distinction matters:
+
+- the toy endpoint is for understanding scheduler behavior in a small self-contained example
+- the app-level `/queue/*` endpoints are for understanding long-lived background workers inside the FastAPI process
 
 
 ## 6.2.1 Sequence diagram: request awaits producer, consumer runs as a task
