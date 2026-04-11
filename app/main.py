@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 import asyncio
 import time
 
@@ -123,6 +123,115 @@ async def fanout_sequential(num_tasks: int = 15, delay_ms: int = 300):
 # - Timeouts are not just latency controls; they are cancellation boundaries.
 # - Good async code must clean up correctly when cancelled midway through work.
 #
+
+
+async def timeout_worker(task_id: int, delay_ms: int = 300):
+    started_at = time.perf_counter()
+    print(f"/timeout worker {task_id}: start delay_ms={delay_ms}")
+    try:
+        await asyncio.sleep(delay_ms / 1000)
+        duration_ms = round((time.perf_counter() - started_at) * 1000, 2)
+        print(f"/timeout worker {task_id}: end duration_ms={duration_ms}")
+        return {"task_id": task_id, "duration_ms": duration_ms, "status": "completed"}
+    except asyncio.CancelledError:
+        duration_ms = round((time.perf_counter() - started_at) * 1000, 2)
+        print(f"/timeout worker {task_id}: cancelled duration_ms={duration_ms}")
+        raise
+    finally:
+        cleanup_ms = round((time.perf_counter() - started_at) * 1000, 2)
+        print(f"/timeout worker {task_id}: cleanup cleanup_ms={cleanup_ms}")
+
+
+@app.get("/timeout/slow")
+async def timeout_slow(
+    delay_ms: int = Query(default=1_000, ge=1, le=60_000),
+    timeout_ms: int = Query(default=500, ge=1, le=60_000),
+):
+    request_started_at = time.perf_counter()
+    try:
+        async with asyncio.timeout(timeout_ms / 1000):
+            result = await timeout_worker(task_id=1, delay_ms=delay_ms)
+        total_ms = round((time.perf_counter() - request_started_at) * 1000, 2)
+        print(
+            f"/timeout/slow: completed delay_ms={delay_ms} "
+            f"timeout_ms={timeout_ms} total_ms={total_ms}"
+        )
+        return {
+            "status": "completed",
+            "delay_ms": delay_ms,
+            "timeout_ms": timeout_ms,
+            "completed_tasks": 1,
+            "cancelled_tasks": 0,
+            "total_ms": total_ms,
+            "result": result,
+        }
+    except TimeoutError:
+        total_ms = round((time.perf_counter() - request_started_at) * 1000, 2)
+        print(
+            f"/timeout/slow: timed_out delay_ms={delay_ms} "
+            f"timeout_ms={timeout_ms} total_ms={total_ms}"
+        )
+        return {
+            "status": "timed_out",
+            "delay_ms": delay_ms,
+            "timeout_ms": timeout_ms,
+            "completed_tasks": 0,
+            "cancelled_tasks": 1,
+            "total_ms": total_ms,
+        }
+
+
+@app.get("/timeout/fanout")
+async def timeout_fanout(
+    num_tasks: int = Query(default=15, ge=1, le=500),
+    delay_ms: int = Query(default=300, ge=1, le=60_000),
+    timeout_ms: int = Query(default=500, ge=1, le=60_000),
+):
+    request_started_at = time.perf_counter()
+    tasks = [
+        asyncio.create_task(timeout_worker(task_id=task_id, delay_ms=delay_ms))
+        for task_id in range(1, num_tasks + 1)
+    ]
+
+    try:
+        async with asyncio.timeout(timeout_ms / 1000):
+            results = await asyncio.gather(*tasks)
+   
+        completed_tasks = sum(1 for task in tasks if task.done() and not task.cancelled())
+        total_ms = round((time.perf_counter() - request_started_at) * 1000, 2)
+        print(
+            f"/timeout/fanout: completed num_tasks={num_tasks} delay_ms={delay_ms} "
+            f"timeout_ms={timeout_ms} completed_tasks={completed_tasks} total_ms={total_ms}"
+        )
+        return {
+            "status": "completed",
+            "num_tasks": num_tasks,
+            "delay_ms": delay_ms,
+            "timeout_ms": timeout_ms,
+            "completed_tasks": completed_tasks,
+            "cancelled_tasks": 0,
+            "total_ms": total_ms,
+            "results": results,
+        }
+    except TimeoutError:
+        await asyncio.gather(*tasks, return_exceptions=True)
+        completed_tasks = sum(1 for task in tasks if task.done() and not task.cancelled())
+        cancelled_tasks = sum(1 for task in tasks if task.cancelled())
+        total_ms = round((time.perf_counter() - request_started_at) * 1000, 2)
+        print(
+            f"/timeout/fanout: timed_out num_tasks={num_tasks} delay_ms={delay_ms} "
+            f"timeout_ms={timeout_ms} completed_tasks={completed_tasks} "
+            f"cancelled_tasks={cancelled_tasks} total_ms={total_ms}"
+        )
+        return {
+            "status": "timed_out",
+            "num_tasks": num_tasks,
+            "delay_ms": delay_ms,
+            "timeout_ms": timeout_ms,
+            "completed_tasks": completed_tasks,
+            "cancelled_tasks": cancelled_tasks,
+            "total_ms": total_ms,
+        }
 
 
 
@@ -340,8 +449,7 @@ async def queue_enqueue(
         "request_duration_ms": request_duration_ms,
     }
 
-# drain = “submit work and wait until all queued
-    work is finished”
+# drain = "submit work and wait until all queued work is finished"
 @app.post("/queue/drain")
 async def queue_drain(
     n: int = Query(default=10, ge=1, le=500),
@@ -431,7 +539,207 @@ async def simulate_queue(seconds: int = 2, num_items: int = 5):
 # Concept to internalize:
 # - Concurrency is not just about speed; failure behavior is part of the API contract.
 # - `gather(...)` and `TaskGroup` can produce very different cleanup behavior.
-#
+
+class FanoutWorkerError(Exception):
+    def __init__(self, task_id: int):
+        super().__init__(f"Task {task_id} failed intentionally")
+        self.task_id = task_id
+
+
+async def worker_with_failure(
+    *,
+    label: str,
+    task_id: int,
+    fail_task: int,
+    delay_ms: int,
+):
+    started_at = time.perf_counter()
+    print(f"{label} worker {task_id}: start delay_ms={delay_ms}")
+    try:
+        if task_id == fail_task:
+            # Fail earlier than sibling tasks so TaskGroup cancellation is visible.
+            await asyncio.sleep((delay_ms / 2) / 1000)
+            print(f"{label} worker {task_id}: FAILING as requested")
+            raise FanoutWorkerError(task_id)
+        await asyncio.sleep(delay_ms / 1000)
+
+        duration_ms = round((time.perf_counter() - started_at) * 1000, 2)
+        print(f"{label} worker {task_id}: done duration_ms={duration_ms}")
+        return {"task_id": task_id, "status": "completed", "duration_ms": duration_ms}
+    except asyncio.CancelledError:
+        duration_ms = round((time.perf_counter() - started_at) * 1000, 2)
+        print(f"{label} worker {task_id}: cancelled duration_ms={duration_ms}")
+        raise
+    finally:
+        cleanup_ms = round((time.perf_counter() - started_at) * 1000, 2)
+        print(f"{label} worker {task_id}: cleanup cleanup_ms={cleanup_ms}")
+
+
+def _iter_leaf_exceptions(exc: BaseException):
+    if isinstance(exc, BaseExceptionGroup):
+        for inner in exc.exceptions:
+            yield from _iter_leaf_exceptions(inner)
+    else:
+        yield exc
+
+
+def _collect_task_outcomes(tasks: dict[int, asyncio.Task]) -> tuple[list[int], list[int], list[dict], list[dict]]:
+    completed_tasks: list[int] = []
+    cancelled_tasks: list[int] = []
+    failed_tasks: list[dict] = []
+    terminal_states: list[dict] = []
+
+    for task_id, task in tasks.items():
+        if task.cancelled():
+            cancelled_tasks.append(task_id)
+            terminal_states.append({"task_id": task_id, "status": "cancelled"})
+            continue
+
+        if not task.done():
+            terminal_states.append({"task_id": task_id, "status": "pending"})
+            continue
+
+        exc = task.exception()
+        if exc is not None:
+            failed_tasks.append({"task_id": task_id, "exception": str(exc)})
+            terminal_states.append(
+                {"task_id": task_id, "status": "failed", "exception": str(exc)}
+            )
+            continue
+
+        result = task.result()
+        completed_tasks.append(task_id)
+        terminal_states.append(
+            {
+                "task_id": task_id,
+                "status": "completed",
+                "duration_ms": result["duration_ms"],
+            }
+        )
+
+    return completed_tasks, cancelled_tasks, failed_tasks, terminal_states
+
+
+def _validate_fail_task(num_tasks: int, fail_task: int) -> None:
+    if fail_task > num_tasks:
+        raise HTTPException(
+            status_code=422,
+            detail=f"fail_task must be between 1 and num_tasks ({num_tasks})",
+        )
+
+
+@app.get("/fanout/gather-fail")
+async def gather_fail_endpoint(
+    num_tasks: int = Query(default=7, ge=1, le=100),
+    fail_task: int = Query(default=3, ge=1, le=100),
+    delay_ms: int = Query(default=200, ge=1, le=60_000),
+    timeout_ms: int = Query(default=1_500, ge=1, le=60_000),
+):
+    request_started_at = time.perf_counter()
+    _validate_fail_task(num_tasks=num_tasks, fail_task=fail_task)
+    tasks = {
+        task_id: asyncio.create_task(
+            worker_with_failure(
+                label="/fanout/gather-fail",
+                task_id=task_id,
+                fail_task=fail_task,
+                delay_ms=delay_ms,
+            )
+        )
+        for task_id in range(1, num_tasks + 1)
+    }
+
+    status = "completed"
+    first_exception = None
+
+    try:
+        async with asyncio.timeout(timeout_ms / 1000):
+            await asyncio.gather(*tasks.values())
+    except TimeoutError:
+        status = "timed_out"
+        first_exception = "request timed out"
+        await asyncio.gather(*tasks.values(), return_exceptions=True)
+    except Exception as exc:
+        status = "failed"
+        first_exception = str(exc)
+        # `gather(...)` surfaces the first failure immediately. We then wait for
+        # remaining tasks to settle so the response can show sibling behavior.
+        await asyncio.gather(*tasks.values(), return_exceptions=True)
+
+    completed_tasks, cancelled_tasks, failed_tasks, terminal_states = _collect_task_outcomes(tasks)
+    total_ms = round((time.perf_counter() - request_started_at) * 1000, 2)
+
+    return {
+        "status": status,
+        "num_tasks": num_tasks,
+        "fail_task": fail_task,
+        "delay_ms": delay_ms,
+        "timeout_ms": timeout_ms,
+        "completed_tasks": completed_tasks,
+        "failed_tasks": failed_tasks,
+        "cancelled_tasks": cancelled_tasks,
+        "first_exception": first_exception,
+        "total_ms": total_ms,
+        "task_terminal_states": terminal_states,
+    }
+
+
+@app.get("/fanout/taskgroup-fail")
+async def taskgroup_fail_endpoint(
+    num_tasks: int = Query(default=7, ge=1, le=100),
+    fail_task: int = Query(default=3, ge=1, le=100),
+    delay_ms: int = Query(default=200, ge=1, le=60_000),
+    timeout_ms: int = Query(default=1_500, ge=1, le=60_000),
+):
+    request_started_at = time.perf_counter()
+    _validate_fail_task(num_tasks=num_tasks, fail_task=fail_task)
+    tasks: dict[int, asyncio.Task] = {}
+    status = "completed"
+    first_exception = None
+    failed_task_id = None
+
+    try:
+        async with asyncio.timeout(timeout_ms / 1000):
+            async with asyncio.TaskGroup() as task_group:
+                for task_id in range(1, num_tasks + 1):
+                    tasks[task_id] = task_group.create_task(
+                        worker_with_failure(
+                            label="/fanout/taskgroup-fail",
+                            task_id=task_id,
+                            fail_task=fail_task,
+                            delay_ms=delay_ms,
+                        )
+                    )
+    except TimeoutError:
+        status = "timed_out"
+        first_exception = "request timed out"
+    except Exception as exc:
+        status = "failed"
+        leaf_exceptions = list(_iter_leaf_exceptions(exc))
+        first_exception = str(leaf_exceptions[0]) if leaf_exceptions else str(exc)
+        for inner in leaf_exceptions:
+            if isinstance(inner, FanoutWorkerError):
+                failed_task_id = inner.task_id
+                break
+
+    completed_tasks, cancelled_tasks, failed_tasks, terminal_states = _collect_task_outcomes(tasks)
+    total_ms = round((time.perf_counter() - request_started_at) * 1000, 2)
+
+    return {
+        "status": status,
+        "num_tasks": num_tasks,
+        "fail_task": fail_task,
+        "delay_ms": delay_ms,
+        "timeout_ms": timeout_ms,
+        "completed_tasks": completed_tasks,
+        "failed_tasks": failed_tasks,
+        "cancelled_tasks": cancelled_tasks,
+        "first_exception": first_exception,
+        "failed_task_id": failed_task_id,
+        "total_ms": total_ms,
+        "task_terminal_states": terminal_states,
+    }
+
 
 
 # Learning goal 8: practice shared mutable state, race conditions, and locks.
@@ -449,6 +757,4 @@ async def simulate_queue(seconds: int = 2, num_items: int = 5):
 #   read-modify-write steps.
 # - `asyncio.Lock` protects coroutine interleavings inside one process; it does not
 #   synchronize across multiple Uvicorn workers.
-#
-# Future lab stub:
-# - Producer/consumer endpoints should live here once you implement Learning Goal 6.
+# Pass for now have done before and i get the generic thing os shared states such as counter and conditions.

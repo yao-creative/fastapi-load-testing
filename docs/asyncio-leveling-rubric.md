@@ -33,7 +33,8 @@ Have CPU-bound work that must be parallel?
   → ProcessPoolExecutor or separate service
 
 Need more request throughput, not lower latency?
-  → more Uvicorn workers (separate processes)```
+  → more Uvicorn workers (separate processes)
+```
 
 ## How to use this rubric
 
