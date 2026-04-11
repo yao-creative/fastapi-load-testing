@@ -1,4 +1,4 @@
-# Experiment Record: `/sleep/blocking` vs `/sleep/async`
+# Experiment Record: `/tutorials/async/sleep/blocking` vs `/tutorials/async/sleep/async`
 
 Date: 2026-04-10
 
@@ -21,7 +21,7 @@ Use two terminals:
 Terminal 1:
 
 ```bash
-time curl "http://localhost:8000/sleep/async?seconds=5"
+time curl "http://localhost:8000/tutorials/async/sleep/async?seconds=5"
 {"status":"ok"}
 ________________________________________________________
 Executed in    5.03 secs      fish           external
@@ -30,10 +30,10 @@ Executed in    5.03 secs      fish           external
 ```
 
 Interpretation:
-- The `/sleep/async` request took about 5 seconds, as expected.
+- The `/tutorials/async/sleep/async` request took about 5 seconds, as expected.
 - Because it uses `await asyncio.sleep(...)`, the event loop can continue serving other requests during that wait.
 
-## Observation 2: `/health` stays fast while `/sleep/async` is in flight
+## Observation 2: `/health` stays fast while `/tutorials/async/sleep/async` is in flight
 
 Terminal 2:
 
@@ -55,7 +55,7 @@ Interpretation:
 Terminal 1:
 
 ```bash
-curl "http://localhost:8000/sleep/blocking?seconds=5"
+curl "http://localhost:8000/tutorials/async/sleep/blocking?seconds=5"
 {"status":"ok"}
 ```
 
@@ -72,14 +72,14 @@ Executed in    3.71 secs      fish           external
 
 Interpretation:
 - `/health` took about 3.71 seconds instead of returning immediately.
-- That delay indicates the worker could not make progress on `/health` while `/sleep/blocking` was inside `time.sleep(...)`.
+- That delay indicates the worker could not make progress on `/health` while `/tutorials/async/sleep/blocking` was inside `time.sleep(...)`.
 - This demonstrates cross-request interference caused by blocking the event loop in a request handler.
 
 ## Conclusion
 
 Result:
-- `/sleep/async` holds the request open for 5 seconds without significantly harming `/health`.
-- `/sleep/blocking` causes unrelated requests like `/health` to wait behind it.
+- `/tutorials/async/sleep/async` holds the request open for 5 seconds without significantly harming `/health`.
+- `/tutorials/async/sleep/blocking` causes unrelated requests like `/health` to wait behind it.
 
 Main takeaway:
 - In an `async def` FastAPI endpoint, `await asyncio.sleep(...)` yields control back to the event loop.
@@ -96,7 +96,7 @@ sequenceDiagram
     participant A as FastAPI app
 
     rect rgb(0, 0, 0)
-        T1->>U: GET /sleep/async?seconds=5
+        T1->>U: GET /tutorials/async/sleep/async?seconds=5
         U->>A: dispatch request
         A->>A: await asyncio.sleep(5)
         Note over A,U: handler yields control to the event loop
@@ -109,7 +109,7 @@ sequenceDiagram
     end
 
     rect rgb(0, 0, 0)
-        T1->>U: GET /sleep/blocking?seconds=5
+        T1->>U: GET /tutorials/async/sleep/blocking?seconds=5
         U->>A: dispatch request
         A->>A: time.sleep(5)
         Note over A,U: worker thread is blocked
@@ -126,6 +126,6 @@ sequenceDiagram
 ## Suggested next run
 
 Repeat the same manual experiment with:
-- multiple overlapping `/sleep/blocking` requests
-- mixed `/sleep/blocking` and `/health` traffic in Locust
+- multiple overlapping `/tutorials/async/sleep/blocking` requests
+- mixed `/tutorials/async/sleep/blocking` and `/health` traffic in Locust
 - one worker versus multiple workers

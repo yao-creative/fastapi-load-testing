@@ -94,7 +94,7 @@ sequenceDiagram
 
 Manual endpoint under test in this repo:
 
-- `GET /bounded/semaphore`
+- `GET /tutorials/async/bounded/semaphore`
 - `capacity = 2`
 - `hold_seconds = 5`
 - `outside_seconds = 0`

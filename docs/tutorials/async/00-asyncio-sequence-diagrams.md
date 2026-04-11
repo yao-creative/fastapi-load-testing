@@ -46,8 +46,8 @@ These are the control points that currently shape what the diagrams mean at runt
 - The API command is `uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2` in [docker-compose.yml](/Users/yao/projects/fastapi-load-testing/docker-compose.yml#L10) and [Dockerfile](/Users/yao/projects/fastapi-load-testing/Dockerfile#L19).
 - That `--workers 2` setting means there are two separate worker processes.
 - The Locust service points at `http://api:8000` from [docker-compose.yml](/Users/yao/projects/fastapi-load-testing/docker-compose.yml#L44).
-- The FastAPI app entry point is `app = FastAPI(...)` in [app/main.py](/Users/yao/projects/fastapi-load-testing/app/main.py#L5).
-- Request handlers are currently defined in [app/main.py](/Users/yao/projects/fastapi-load-testing/app/main.py#L8), including `/sleep/*`, `/cpu/*`, and `/fanout/*`.
+- The FastAPI app is assembled in [app/main.py](/Users/yao/projects/fastapi-load-testing/app/main.py).
+- Tutorial request handlers are defined in [app/api/tutorials_async.py](/Users/yao/projects/fastapi-load-testing/app/api/tutorials_async.py), including `/tutorials/async/sleep/*`, `/tutorials/async/cpu/*`, and `/tutorials/async/fanout/*`.
 
 ```mermaid
 flowchart TD
@@ -61,35 +61,35 @@ flowchart TD
     P2 --> T2[Main thread]
     T1 --> L1[Asyncio event loop]
     T2 --> L2[Asyncio event loop]
-    L1 --> H1[FastAPI handlers in app.main]
-    L2 --> H2[FastAPI handlers in app.main]
+    L1 --> H1[Tutorial handlers in app/api/tutorials_async.py]
+    L2 --> H2[Tutorial handlers in app/api/tutorials_async.py]
     D --> R[Concurrent HTTP requests]
     R --> H1
     R --> H2
 ```
 
 
-## 0.1 Function-level control points in `app/main.py`
+## 0.1 Function-level control points in `app/api/tutorials_async.py`
 
-Right now the main runtime behaviors in [app/main.py](/Users/yao/projects/fastapi-load-testing/app/main.py#L1) break down like this:
+Right now the main runtime behaviors in [app/api/tutorials_async.py](/Users/yao/projects/fastapi-load-testing/app/api/tutorials_async.py#L1) break down like this:
 
-- `/sleep/blocking` calls `time.sleep(...)` and blocks the worker thread.
-- `/sleep/async` calls `await asyncio.sleep(...)` and yields the event loop.
-- `/cpu/inline` runs CPU work directly in the handler.
-- `/cpu/to-thread` offloads CPU work with `asyncio.to_thread(...)`.
-- `/fanout/sequential` awaits each child one by one.
-- `/fanout/gather` schedules child coroutines together with `asyncio.gather(...)`.
-- Tutorial 05 will add a semaphore-controlled critical section near the Learning Goal 5 block in [app/main.py](/Users/yao/projects/fastapi-load-testing/app/main.py#L141).
+- `/tutorials/async/sleep/blocking` calls `time.sleep(...)` and blocks the worker thread.
+- `/tutorials/async/sleep/async` calls `await asyncio.sleep(...)` and yields the event loop.
+- `/tutorials/async/cpu/inline` runs CPU work directly in the handler.
+- `/tutorials/async/cpu/to-thread` offloads CPU work with `asyncio.to_thread(...)`.
+- `/tutorials/async/fanout/sequential` awaits each child one by one.
+- `/tutorials/async/fanout/gather` schedules child coroutines together with `asyncio.gather(...)`.
+- Tutorial 05 uses the semaphore-backed runtime in [app/core/tutorial_runtime.py](/Users/yao/projects/fastapi-load-testing/app/core/tutorial_runtime.py) together with the route in [app/api/tutorials_async.py](/Users/yao/projects/fastapi-load-testing/app/api/tutorials_async.py).
 
 ```mermaid
 flowchart TD
     A[HTTP request enters FastAPI route] --> B{Handler pattern}
-    B --> C[/sleep/blocking/]
-    B --> D[/sleep/async/]
-    B --> E[/cpu/inline/]
-    B --> F[/cpu/to-thread/]
-    B --> G[/fanout/sequential/]
-    B --> H[/fanout/gather/]
+    B --> C[/tutorials/async/sleep/blocking/]
+    B --> D[/tutorials/async/sleep/async/]
+    B --> E[/tutorials/async/cpu/inline/]
+    B --> F[/tutorials/async/cpu/to-thread/]
+    B --> G[/tutorials/async/fanout/sequential/]
+    B --> H[/tutorials/async/fanout/gather/]
     B --> I[/semaphore/resource/ tutorial]
     C --> C1[time.sleep blocks worker thread]
     D --> D1[await asyncio.sleep yields loop]

@@ -1,4 +1,4 @@
-## Experiment Record: `/fanout/sequential` vs `/fanout/gather`
+## Experiment Record: `/tutorials/async/fanout/sequential` vs `/tutorials/async/fanout/gather`
 
 Date: 2026-04-10
 
@@ -12,7 +12,7 @@ Run the app locally with one Uvicorn worker:
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Both endpoints use the same worker behavior from [app/main.py](/Users/yao/projects/fastapi-load-testing/app/main.py):
+Both endpoints use the same worker behavior from [app/api/tutorials_async.py](/Users/yao/projects/fastapi-load-testing/app/api/tutorials_async.py):
 - `num_tasks=15`
 - `delay_ms=300`
 - Each worker does `await asyncio.sleep(delay_ms / 1000)`
@@ -24,7 +24,7 @@ That means the ideal expectation is:
 ## Observation 1: sequential fan-out accumulates per-task delay
 
 ```bash
-time curl "http://localhost:8000/fanout/sequential"
+time curl "http://localhost:8000/tutorials/async/fanout/sequential"
 {"status":"ok","num_tasks":15,"delay_ms":300,"total_duration_ms":4530.32,"results":[{"task_id":1,"duration_ms":304.13},{"task_id":2,"duration_ms":300.33},{"task_id":3,"duration_ms":300.34},{"task_id":4,"duration_ms":299.98},{"task_id":5,"duration_ms":301.18},{"task_id":6,"duration_ms":302.23},{"task_id":7,"duration_ms":301.51},{"task_id":8,"duration_ms":300.97},{"task_id":9,"duration_ms":304.65},{"task_id":10,"duration_ms":303.58},{"task_id":11,"duration_ms":301.94},{"task_id":12,"duration_ms":301.53},{"task_id":13,"duration_ms":301.88},{"task_id":14,"duration_ms":302.26},{"task_id":15,"duration_ms":302.97}]}
 ________________________________________________________
 Executed in    4.57 secs      fish           external
@@ -40,7 +40,7 @@ Interpretation:
 ## Observation 2: `asyncio.gather(...)` collapses total latency to one wait window
 
 ```bash
-time curl "http://localhost:8000/fanout/gather"
+time curl "http://localhost:8000/tutorials/async/fanout/gather"
 {"status":"ok","num_tasks":15,"delay_ms":300,"total_duration_ms":302.69,"results":[{"task_id":1,"duration_ms":301.52},{"task_id":2,"duration_ms":301.5},{"task_id":3,"duration_ms":301.5},{"task_id":4,"duration_ms":301.5},{"task_id":5,"duration_ms":301.5},{"task_id":6,"duration_ms":301.51},{"task_id":7,"duration_ms":301.54},{"task_id":8,"duration_ms":301.52},{"task_id":9,"duration_ms":301.52},{"task_id":10,"duration_ms":301.52},{"task_id":11,"duration_ms":301.53},{"task_id":12,"duration_ms":301.5},{"task_id":13,"duration_ms":301.52},{"task_id":14,"duration_ms":301.52},{"task_id":15,"duration_ms":301.52}]}
 ________________________________________________________
 Executed in  342.21 millis    fish           external
@@ -56,8 +56,8 @@ Interpretation:
 ## Comparison
 
 Result:
-- `/fanout/sequential`: `4530.32 ms`
-- `/fanout/gather`: `302.69 ms`
+- `/tutorials/async/fanout/sequential`: `4530.32 ms`
+- `/tutorials/async/fanout/gather`: `302.69 ms`
 
 Observed effect:
 - `gather` reduced end-to-end latency by about `93.3%`.
@@ -74,7 +74,7 @@ Key idea: the handler awaits each subtask to completion before starting the next
 
 ```mermaid
 sequenceDiagram
-    participant H as /fanout/sequential handler
+    participant H as /tutorials/async/fanout/sequential handler
     participant L as Event loop
     participant W1 as worker(1)
     participant W2 as worker(2)
@@ -102,7 +102,7 @@ Key idea: the handler schedules all subtasks first, then awaits one combined joi
 
 ```mermaid
 sequenceDiagram
-    participant H as /fanout/gather handler
+    participant H as /tutorials/async/fanout/gather handler
     participant G as asyncio.gather(...)
     participant L as Event loop
     participant W1 as worker(1)
@@ -127,4 +127,4 @@ sequenceDiagram
 
 - Increase `num_tasks` to confirm sequential grows linearly while `gather` stays near one delay window.
 - Add jitter to `delay_ms` and verify that `gather` total time tracks the slowest worker, not the average.
-- Repeat under Locust with mixed traffic and compare p95 for `/health`, `/fanout/sequential`, and `/fanout/gather`.
+- Repeat under Locust with mixed traffic and compare p95 for `/health`, `/tutorials/async/fanout/sequential`, and `/tutorials/async/fanout/gather`.

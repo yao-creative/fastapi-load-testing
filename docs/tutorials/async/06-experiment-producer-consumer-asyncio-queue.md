@@ -11,9 +11,9 @@ This is not a distributed message broker. It’s a **single-process** pattern (p
 
 Suggested minimal API shape (naming critique below):
 
-- **`POST /queue/enqueue`**: enqueue \(N\) jobs into an in-memory `asyncio.Queue`
-- **`POST /queue/drain`**: enqueue jobs and **wait until they are processed** (demonstrates `queue.join()`)
-- Optional: **`GET /queue/stats`**: return queue size and worker counters (for debugging)
+- **`POST /tutorials/async/queue/enqueue`**: enqueue \(N\) jobs into an in-memory `asyncio.Queue`
+- **`POST /tutorials/async/queue/drain`**: enqueue jobs and **wait until they are processed** (demonstrates `queue.join()`)
+- Optional: **`GET /tutorials/async/queue/stats`**: return queue size and worker counters (for debugging)
 
 Suggested payload/params:
 
@@ -35,7 +35,7 @@ sequenceDiagram
     participant W1 as worker task 1
     participant W2 as worker task 2
 
-    Client->>API: POST /queue/enqueue (n jobs)
+    Client->>API: POST /tutorials/async/queue/enqueue (n jobs)
     loop n times
         API->>Q: await put(job)
     end
@@ -66,7 +66,7 @@ sequenceDiagram
     participant Q as asyncio.Queue
     participant W as worker tasks
 
-    Client->>API: POST /queue/drain (n jobs)
+    Client->>API: POST /tutorials/async/queue/drain (n jobs)
     loop n times
         API->>Q: await put(job)
     end
@@ -82,7 +82,7 @@ sequenceDiagram
 
 ### Endpoint shape and naming critique
 
-- `/queue/enqueue` and `/queue/drain` are explicit for a lab.
+- `/tutorials/async/queue/enqueue` and `/tutorials/async/queue/drain` are explicit for a lab.
 - If you want a more “RESTy” shape later: `POST /jobs` and `POST /jobs:drain` (action endpoint) or `POST /jobs?wait=true`. For now, clarity > purity.
 
 ### Where to create the queue and workers
@@ -166,8 +166,8 @@ api-1     | INFO:     192.168. ...
 How to read this:
 
 - `Application startup complete` means FastAPI/Uvicorn has finished startup hooks.
-- `/queue worker 1: started` and `/queue worker 2: started` come from the app-level background workers created at startup for the `/queue/enqueue` and `/queue/drain` experiment.
-- `Produced item X` and `Consumed X` come from the separate toy `/simulate/queue` endpoint.
+- `/queue worker 1: started` and `/queue worker 2: started` come from the app-level background workers created at startup for the `/tutorials/async/queue/enqueue` and `/tutorials/async/queue/drain` experiment.
+- `Produced item X` and `Consumed X` come from the separate toy `/tutorials/async/simulate/queue` endpoint.
 - Those `Produced` and `Consumed` lines do **not** mean the startup `/queue worker` tasks handled those items. The toy endpoint creates its own local queue and its own one-off consumer task.
 
 This distinction matters:
@@ -285,26 +285,26 @@ sequenceDiagram
 
 - The two diagrams at the top are **higher-level coordination diagrams**. They explain the overall pattern: producer enqueues, workers consume, and `join()` waits for all work to finish.
 - `6.2.1` and `6.2.2` are **scheduler-level views**. They show the precise consequence of `await asyncio.sleep(...)`: the producer yields after putting `i`, so the consumer can run before `i+1` is enqueued.
-- The earlier `/queue/enqueue` diagram can look like the producer pushes all `n` items in one uninterrupted burst. That is only true if each loop iteration can keep advancing immediately. If the producer does `await asyncio.sleep(...)` between puts, the burst is broken up into separate scheduling turns.
-- The earlier `/queue/drain` diagram focuses on the `await queue.join()` barrier. `6.1` and `6.2` focus on what happens **before** that barrier, inside the producer and around task scheduling.
+- The earlier `/tutorials/async/queue/enqueue` diagram can look like the producer pushes all `n` items in one uninterrupted burst. That is only true if each loop iteration can keep advancing immediately. If the producer does `await asyncio.sleep(...)` between puts, the burst is broken up into separate scheduling turns.
+- The earlier `/tutorials/async/queue/drain` diagram focuses on the `await queue.join()` barrier. `6.1` and `6.2` focus on what happens **before** that barrier, inside the producer and around task scheduling.
 - None of the diagrams imply that `await q.put(i)` waits for the consumer to finish item `i`. `put()` only waits until the item is accepted into the queue, which may still be much earlier than `get()` or `task_done()`.
 - The difference between `6.1` and `6.2` is mostly control flow, not queue semantics. In `6.1`, the request coroutine directly runs producer code. In `6.2`, the request coroutine acts as a coordinator and both producer and consumer are background tasks.
 
 
-## App-level sequence: startup workers plus `/queue/enqueue` and `/queue/drain`
+## App-level sequence: startup workers plus `/tutorials/async/queue/enqueue` and `/tutorials/async/queue/drain`
 
-This matches the implementation in `app/main.py` more closely:
+This matches the implementation in `app/api/tutorials_async.py` and `app/core/tutorial_runtime.py` more closely:
 
-- `startup_queue_workers()` creates long-lived consumer tasks once when the app starts.
-- `/queue/enqueue` only produces jobs and returns after `put(...)` succeeds.
-- `/queue/drain` produces jobs and then waits at `queue.join()` until workers call `task_done()` for all queued jobs.
+- app lifespan startup creates the shared `TutorialRuntime` and starts long-lived consumer tasks once when the app starts.
+- `/tutorials/async/queue/enqueue` only produces jobs and returns after `put(...)` succeeds.
+- `/tutorials/async/queue/drain` produces jobs and then waits at `queue.join()` until workers call `task_done()` for all queued jobs.
 - The consumer loop is **not redundant**. Without worker tasks already running, `enqueue` would only pile items into the queue and `drain` would wait forever.
 
 ```mermaid
 sequenceDiagram
     participant F as FastAPI app lifecycle
-    participant R1 as request: POST /queue/enqueue
-    participant R2 as request: POST /queue/drain
+    participant R1 as request: POST /tutorials/async/queue/enqueue
+    participant R2 as request: POST /tutorials/async/queue/drain
     participant Q as shared asyncio.Queue
     participant W1 as queue_worker(1)
     participant W2 as queue_worker(2)

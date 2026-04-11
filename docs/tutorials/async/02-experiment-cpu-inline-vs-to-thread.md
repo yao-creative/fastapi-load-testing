@@ -1,4 +1,4 @@
-# Experiment Guide: `/cpu/inline` vs `/cpu/to-thread`
+# Experiment Guide: `/tutorials/async/cpu/inline` vs `/tutorials/async/cpu/to-thread`
 
 Date: 2026-04-10
 
@@ -11,10 +11,10 @@ Main question:
 ## Endpoint Summary
 
 Learning goal 2:
-- `GET /cpu/inline`
+- `GET /tutorials/async/cpu/inline`
   - Run a CPU-heavy loop directly in the request handler.
   - Confirm that async syntax does not save CPU-bound work.
-- `GET /cpu/to-thread`
+- `GET /tutorials/async/cpu/to-thread`
   - Offload the same blocking CPU function with `asyncio.to_thread(...)`.
   - Measure whether responsiveness improves for other requests.
 
@@ -28,16 +28,16 @@ def run_cpu_work(iterations: int) -> int:
     return total
 
 
-@app.get("/cpu/inline")
+@app.get("/tutorials/async/cpu/inline")
 async def cpu_inline(iterations: int = 25_000_000):
-    print(f"/cpu/inline: Running CPU-heavy loop for {iterations} iterations")
+    print(f"/tutorials/async/cpu/inline: Running CPU-heavy loop for {iterations} iterations")
     checksum = run_cpu_work(iterations)
     return {"status": "ok", "iterations": iterations, "checksum": checksum}
 
 
-@app.get("/cpu/to-thread")
+@app.get("/tutorials/async/cpu/to-thread")
 async def cpu_to_thread(iterations: int = 25_000_000):
-    print(f"/cpu/to-thread: Running CPU-heavy loop for {iterations} iterations")
+    print(f"/tutorials/async/cpu/to-thread: Running CPU-heavy loop for {iterations} iterations")
     checksum = await asyncio.to_thread(run_cpu_work, iterations)
     return {"status": "ok", "iterations": iterations, "checksum": checksum}
 ```
@@ -47,8 +47,8 @@ async def cpu_to_thread(iterations: int = 25_000_000):
 `async def` only helps when the code reaches an `await` point that yields control back to the event loop.
 
 For pure CPU work:
-- `/cpu/inline` never yields while the loop is running.
-- `/cpu/to-thread` moves the loop off the event-loop thread, so the main loop can keep servicing other work.
+- `/tutorials/async/cpu/inline` never yields while the loop is running.
+- `/tutorials/async/cpu/to-thread` moves the loop off the event-loop thread, so the main loop can keep servicing other work.
 
 Important caveat:
 - `asyncio.to_thread(...)` does not make pure Python CPU work faster.
@@ -73,7 +73,7 @@ If the default iteration count finishes too quickly or too slowly on your machin
 Terminal 1:
 
 ```bash
-time curl "http://localhost:8000/cpu/inline?iterations=25000000"
+time curl "http://localhost:8000/tutorials/async/cpu/inline?iterations=25000000"
 ```
 
 While that request is still running, Terminal 2:
@@ -83,7 +83,7 @@ time curl "http://localhost:8000/health"
 ```
 
 What to look for:
-- `/cpu/inline` should keep one worker busy in Python code the whole time.
+- `/tutorials/async/cpu/inline` should keep one worker busy in Python code the whole time.
 - `/health` will often be delayed noticeably because the event-loop thread is occupied by the CPU loop.
 - This demonstrates that `async def` does not automatically make CPU-bound handlers non-blocking.
 
@@ -92,7 +92,7 @@ What to look for:
 Terminal 1:
 
 ```bash
-time curl "http://localhost:8000/cpu/to-thread?iterations=25000000"
+time curl "http://localhost:8000/tutorials/async/cpu/to-thread?iterations=25000000"
 ```
 
 While that request is still running, Terminal 2:
@@ -102,15 +102,15 @@ time curl "http://localhost:8000/health"
 ```
 
 What to look for:
-- `/cpu/to-thread` still takes substantial time, because the same CPU work is still being done.
-- `/health` should usually respond faster than with `/cpu/inline`, because the event loop itself is not trapped inside the loop.
+- `/tutorials/async/cpu/to-thread` still takes substantial time, because the same CPU work is still being done.
+- `/health` should usually respond faster than with `/tutorials/async/cpu/inline`, because the event loop itself is not trapped inside the loop.
 - The improvement may be partial rather than perfect, because the background worker thread still competes for the GIL.
 
 ## Expected Interpretation
 
 Expected result:
-- `/cpu/inline` is the worst case for unrelated request latency in a single-worker process.
-- `/cpu/to-thread` can improve responsiveness for unrelated I/O-oriented requests, but it is not true parallel CPU acceleration for pure Python loops.
+- `/tutorials/async/cpu/inline` is the worst case for unrelated request latency in a single-worker process.
+- `/tutorials/async/cpu/to-thread` can improve responsiveness for unrelated I/O-oriented requests, but it is not true parallel CPU acceleration for pure Python loops.
 
 Main takeaway:
 - Async syntax helps with waiting, not with heavy CPU work by itself.
@@ -128,7 +128,7 @@ sequenceDiagram
     participant W as Worker thread
 
     rect rgb(0, 0, 0)
-        T1->>U: GET /cpu/inline
+        T1->>U: GET /tutorials/async/cpu/inline
         U->>E: dispatch request
         E->>E: run_cpu_work(iterations)
         Note over E: CPU loop runs inline and does not yield
@@ -142,7 +142,7 @@ sequenceDiagram
     end
 
     rect rgb(0, 0, 0)
-        T1->>U: GET /cpu/to-thread
+        T1->>U: GET /tutorials/async/cpu/to-thread
         U->>E: dispatch request
         E->>W: asyncio.to_thread(run_cpu_work)
         Note over W: CPU loop runs in a background thread

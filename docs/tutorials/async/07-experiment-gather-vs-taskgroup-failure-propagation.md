@@ -4,12 +4,12 @@ Date: 2026-04-11
 
 Goal: understand that concurrent fan-out is not only about latency. It is also about what the parent request does when one child task fails.
 
-This tutorial matches Learning Goal 7 in [app/main.py](/Users/yao/projects/fastapi-load-testing/app/main.py#L525).
+This tutorial matches Learning Goal 7 in [app/api/tutorials_async.py](/Users/yao/projects/fastapi-load-testing/app/api/tutorials_async.py).
 
 
 ## What the implementation does
 
-Both endpoints use the same helper, [worker_with_failure](/Users/yao/projects/fastapi-load-testing/app/main.py#L550).
+Both endpoints use the same helper, [worker_with_failure](/Users/yao/projects/fastapi-load-testing/app/api/tutorials_async.py).
 
 That worker behaves like this:
 
@@ -24,9 +24,9 @@ That timing is intentional. It makes the failure happen early enough that siblin
 
 ## The two endpoints
 
-### `GET /fanout/gather-fail`
+### `GET /tutorials/async/fanout/gather-fail`
 
-Implementation: [gather_fail_endpoint](/Users/yao/projects/fastapi-load-testing/app/main.py#L624)
+Implementation: [gather_fail_endpoint](/Users/yao/projects/fastapi-load-testing/app/api/tutorials_async.py)
 
 This endpoint creates all child tasks, awaits them with `asyncio.gather(...)`, and lets the first child failure surface to the request handler.
 
@@ -40,9 +40,9 @@ What to observe:
 - cleanup still runs for the failed task and for the siblings that complete
 
 
-### `GET /fanout/taskgroup-fail`
+### `GET /tutorials/async/fanout/taskgroup-fail`
 
-Implementation: [taskgroup_fail_endpoint](/Users/yao/projects/fastapi-load-testing/app/main.py#L680)
+Implementation: [taskgroup_fail_endpoint](/Users/yao/projects/fastapi-load-testing/app/api/tutorials_async.py)
 
 This endpoint creates the same workload inside `asyncio.TaskGroup`.
 
@@ -63,13 +63,13 @@ Key idea: `gather(...)` lets the first failure reach the parent, but sibling tas
 ```mermaid
 sequenceDiagram
     participant Client
-    participant API as /fanout/gather-fail
+    participant API as /tutorials/async/fanout/gather-fail
     participant G as asyncio.gather(...)
     participant W1 as worker 1
     participant WF as failing worker
     participant W3 as worker 3
 
-    Client->>API: GET /fanout/gather-fail
+    Client->>API: GET /tutorials/async/fanout/gather-fail
     API->>W1: create task
     API->>WF: create task
     API->>W3: create task
@@ -97,13 +97,13 @@ Key idea: `TaskGroup` treats sibling cancellation as part of the contract when o
 ```mermaid
 sequenceDiagram
     participant Client
-    participant API as /fanout/taskgroup-fail
+    participant API as /tutorials/async/fanout/taskgroup-fail
     participant TG as asyncio.TaskGroup
     participant W1 as worker 1
     participant WF as failing worker
     participant W3 as worker 3
 
-    Client->>API: GET /fanout/taskgroup-fail
+    Client->>API: GET /tutorials/async/fanout/taskgroup-fail
     API->>TG: enter task group
     TG->>W1: create task
     TG->>WF: create task
@@ -200,12 +200,12 @@ Your logs show this sequence:
 - two Uvicorn worker processes started: process `12` and process `13`
 - each process completed FastAPI startup
 - queue workers also started in the process that handled these requests
-- `/fanout/taskgroup-fail` was called first
-- `/fanout/gather-fail` was called second
+- `/tutorials/async/fanout/taskgroup-fail` was called first
+- `/tutorials/async/fanout/gather-fail` was called second
 
 The interesting part is the task behavior.
 
-### `GET /fanout/taskgroup-fail`
+### `GET /tutorials/async/fanout/taskgroup-fail`
 
 Observed log pattern:
 
@@ -223,7 +223,7 @@ What that means:
 This is the implementation doing the right thing. The request returned only after the task group had driven sibling cancellation and cleanup.
 
 
-### `GET /fanout/gather-fail`
+### `GET /tutorials/async/fanout/gather-fail`
 
 Observed log pattern:
 

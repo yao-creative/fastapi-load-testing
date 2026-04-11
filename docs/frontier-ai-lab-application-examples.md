@@ -12,7 +12,7 @@ This file is not claiming that every frontier AI lab uses the exact same impleme
 ## 00: asyncio sequence diagrams
 
 File:
-- `docs/tutorials/00-asyncio-sequence-diagrams.md`
+- `docs/tutorials/async/00-asyncio-sequence-diagrams.md`
 
 Real-world AI lab analogs:
 - A chat or agent request that goes through retrieval, reranking, safety checks, tool calls, and final generation.
@@ -36,10 +36,10 @@ async def answer(question: str):
 ```
 
 
-## 01: `/sleep/blocking` vs `/sleep/async`
+## 01: `/tutorials/async/sleep/blocking` vs `/tutorials/async/sleep/async`
 
 File:
-- `docs/tutorials/01-experiment-sleep-blocking-vs-async.md`
+- `docs/tutorials/async/01-experiment-sleep-blocking-vs-async.md`
 
 Real-world AI lab analogs:
 - An orchestration API waiting on remote model calls over HTTP.
@@ -70,10 +70,10 @@ async def chat_blocking(prompt: str):
 ```
 
 
-## 02: `/cpu/inline` vs `/cpu/to-thread`
+## 02: `/tutorials/async/cpu/inline` vs `/tutorials/async/cpu/to-thread`
 
 File:
-- `docs/tutorials/02-experiment-cpu-inline-vs-to-thread.md`
+- `docs/tutorials/async/02-experiment-cpu-inline-vs-to-thread.md`
 
 Real-world AI lab analogs:
 - PDF parsing, OCR preprocessing, or image resizing before sending data to a model.
@@ -108,10 +108,10 @@ async def ingest_to_thread(file_bytes: bytes):
 ```
 
 
-## 03: `/fanout/sequential` vs `/fanout/gather`
+## 03: `/tutorials/async/fanout/sequential` vs `/tutorials/async/fanout/gather`
 
 File:
-- `docs/tutorials/03-experiment-fanout-sequential-vs-gather.md`
+- `docs/tutorials/async/03-experiment-fanout-sequential-vs-gather.md`
 
 Real-world AI lab analogs:
 - Parallel retrieval across multiple indices or stores, such as semantic search plus keyword search plus metadata lookup.
@@ -140,7 +140,7 @@ async def rag_search(query: str):
 ## 04: producer-consumer pattern
 
 File:
-- `docs/tutorials/04-producer-consumer-pattern.md`
+- `docs/tutorials/async/06-experiment-producer-consumer-asyncio-queue.md`
 
 Real-world AI lab analogs:
 - Submit a document-ingestion job now, process it later, then poll for status.
@@ -170,7 +170,7 @@ async def get_eval_run(run_id: str):
 ## 05: bounded resource with `asyncio.Semaphore`
 
 File:
-- `docs/tutorials/05-experiment-bounded-resource-semaphore.md`
+- `docs/tutorials/async/05-experiment-bounded-resource-semaphore.md`
 
 Real-world AI lab analogs:
 - Cap in-flight requests against a rate-limited model API.
@@ -201,7 +201,7 @@ async def guardrailed_answer(prompt: str):
 ## 06: producer-consumer with `asyncio.Queue`
 
 File:
-- `docs/tutorials/06-experiment-producer-consumer-asyncio-queue.md`
+- `docs/tutorials/async/06-experiment-producer-consumer-asyncio-queue.md`
 
 Real-world AI lab analogs:
 - In-process ingestion of uploaded documents before chunking, embedding, and indexing.
@@ -239,7 +239,7 @@ async def upload_document(doc_id: str, file_bytes: bytes):
 ## 07: timeouts and cancellation
 
 File:
-- `docs/tutorials/07-experiment-timeout-and-cancellation.md`
+- `docs/tutorials/async/04-experiment-timeout-and-cancellation.md`
 
 Real-world AI lab analogs:
 - A user closes the browser tab while an agent is still running retrieval and tool calls.
@@ -274,7 +274,7 @@ async def background_agent(question: str):
 ## 08: `gather(...)` vs `TaskGroup` failure propagation
 
 File:
-- `docs/tutorials/08-experiment-gather-vs-taskgroup-failure-propagation.md`
+- `docs/tutorials/async/07-experiment-gather-vs-taskgroup-failure-propagation.md`
 
 Real-world AI lab analogs:
 - An agent request fans out to retrieval, tool planning, safety checks, and output formatting, and one branch fails.
@@ -306,7 +306,7 @@ async def run_agent_branches(question: str):
 ## 09: shared state race and `asyncio.Lock`
 
 File:
-- `docs/tutorials/09-experiment-shared-state-race-and-lock.md`
+- `docs/tutorials/async/08-experiment-shared-state-race-and-lock.md`
 
 Real-world AI lab analogs:
 - Per-process prompt-cache bookkeeping.

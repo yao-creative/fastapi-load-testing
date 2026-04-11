@@ -27,17 +27,17 @@ class ApiUser(HttpUser):
     @task(1)
     def sleep_blocking(self):
         self.client.get(
-            "/sleep/blocking",
+            "/tutorials/async/sleep/blocking",
             params={"seconds": SLEEP_SECONDS},
-            name="/sleep/blocking",
+            name="/tutorials/async/sleep/blocking",
         )
 
     @task(1)
     def sleep_async(self):
         self.client.get(
-            "/sleep/async",
+            "/tutorials/async/sleep/async",
             params={"seconds": SLEEP_SECONDS},
-            name="/sleep/async",
+            name="/tutorials/async/sleep/async",
         )
 
 

@@ -1,19 +1,19 @@
-## Experiment: `/timeout/slow` and `/timeout/fanout`
+## Experiment: `/tutorials/async/timeout/slow` and `/tutorials/async/timeout/fanout`
 
 Date: 2026-04-11
 
 Goal: understand that a timeout in `asyncio` is not just a latency limit. It is a **cancellation boundary**.
 
-This tutorial matches the Learning Goal 4 section in [app/main.py](/Users/yao/projects/fastapi-load-testing/app/main.py).
+This tutorial matches the Learning Goal 4 section in [app/api/tutorials_async.py](/Users/yao/projects/fastapi-load-testing/app/api/tutorials_async.py).
 
 
-## What this section in `app/main.py` does
+## What this section in `app/api/tutorials_async.py` does
 
 The relevant code has three pieces:
 
 - `timeout_worker(...)`: a worker coroutine that logs start, completion, cancellation, and cleanup
-- `GET /timeout/slow`: runs one worker under `asyncio.timeout(...)`
-- `GET /timeout/fanout`: starts many workers, then applies one request-level timeout to the whole fan-out
+- `GET /tutorials/async/timeout/slow`: runs one worker under `asyncio.timeout(...)`
+- `GET /tutorials/async/timeout/fanout`: starts many workers, then applies one request-level timeout to the whole fan-out
 
 That combination teaches the two main timeout cases:
 
@@ -32,18 +32,18 @@ That combination teaches the two main timeout cases:
 That structure matters because many async bugs only show up during cancellation, not during the happy path.
 
 
-## Sequence diagram: `GET /timeout/slow`
+## Sequence diagram: `GET /tutorials/async/timeout/slow`
 
 Key idea: one request, one inner coroutine, one timeout budget.
 
 ```mermaid
 sequenceDiagram
     participant Client
-    participant API as /timeout/slow
+    participant API as /tutorials/async/timeout/slow
     participant T as asyncio.timeout(...)
     participant W as timeout_worker
 
-    Client->>API: GET /timeout/slow
+    Client->>API: GET /tutorials/async/timeout/slow
     API->>T: enter timeout budget
     T->>W: await worker
     Note over W: await asyncio.sleep(...)
@@ -61,21 +61,21 @@ sequenceDiagram
 ```
 
 
-## Sequence diagram: `GET /timeout/fanout`
+## Sequence diagram: `GET /tutorials/async/timeout/fanout`
 
 Key idea: one timeout at the request level can cancel many unfinished child tasks at once.
 
 ```mermaid
 sequenceDiagram
     participant Client
-    participant API as /timeout/fanout
+    participant API as /tutorials/async/timeout/fanout
     participant T as asyncio.timeout(...)
     participant G as asyncio.gather(...)
     participant W1 as worker 1
     participant W2 as worker 2
     participant W3 as worker 3
 
-    Client->>API: GET /timeout/fanout
+    Client->>API: GET /tutorials/async/timeout/fanout
     API->>T: enter timeout budget
     API->>G: gather worker tasks
     G->>W1: run
@@ -121,8 +121,8 @@ For this experiment, the lifecycle is the real lesson.
 The following output was captured on 2026-04-11 while running the API and Locust together. It shows three important phases:
 
 - service startup
-- a successful `/timeout/fanout` request where all 15 workers finished before the 500 ms timeout
-- repeated `/timeout/slow` requests where the 1000 ms worker was cancelled by the 500 ms timeout
+- a successful `/tutorials/async/timeout/fanout` request where all 15 workers finished before the 500 ms timeout
+- repeated `/tutorials/async/timeout/slow` requests where the 1000 ms worker was cancelled by the 500 ms timeout
 
 ```text
 Started parent process [10]
@@ -181,42 +181,42 @@ api-1     | /timeout worker 14: end duration_ms=301.1
 api-1     | /timeout worker 14: cleanup cleanup_ms=301.1
 api-1     | /timeout worker 15: end duration_ms=301.07
 api-1     | /timeout worker 15: cleanup cleanup_ms=301.08
-api-1     | /timeout/fanout: completed num_tasks=15 delay_ms=300 timeout_ms=500 completed_tasks=15 total_ms=302.26
-api-1     | INFO:     192.168.65.1:25057 - "GET /timeout/fanout HTTP/1.1" 200 OK
+api-1     | /tutorials/async/timeout/fanout: completed num_tasks=15 delay_ms=300 timeout_ms=500 completed_tasks=15 total_ms=302.26
+api-1     | INFO:     192.168.65.1:25057 - "GET /tutorials/async/timeout/fanout HTTP/1.1" 200 OK
 api-1     | /queue worker 1: started
 api-1     | /queue worker 2: started
 api-1     | /timeout worker 1: start delay_ms=1000
 api-1     | /timeout worker 1: cancelled duration_ms=500.01
 api-1     | /timeout worker 1: cleanup cleanup_ms=500.03
-api-1     | /timeout/slow: timed_out delay_ms=1000 timeout_ms=500 total_ms=500.45
-api-1     | INFO:     192.168.65.1:29801 - "GET /timeout/slow HTTP/1.1" 200 OK
+api-1     | /tutorials/async/timeout/slow: timed_out delay_ms=1000 timeout_ms=500 total_ms=500.45
+api-1     | INFO:     192.168.65.1:29801 - "GET /tutorials/async/timeout/slow HTTP/1.1" 200 OK
 api-1     | /timeout worker 1: start delay_ms=1000
 api-1     | /timeout worker 1: cancelled duration_ms=502.09
 api-1     | /timeout worker 1: cleanup cleanup_ms=502.13
-api-1     | /timeout/slow: timed_out delay_ms=1000 timeout_ms=500 total_ms=502.19
-api-1     | INFO:     192.168.65.1:32131 - "GET /timeout/slow HTTP/1.1" 200 OK
+api-1     | /tutorials/async/timeout/slow: timed_out delay_ms=1000 timeout_ms=500 total_ms=502.19
+api-1     | INFO:     192.168.65.1:32131 - "GET /tutorials/async/timeout/slow HTTP/1.1" 200 OK
 api-1     | /timeout worker 1: start delay_ms=1000
 api-1     | /timeout worker 1: cancelled duration_ms=519.05
 api-1     | /timeout worker 1: cleanup cleanup_ms=519.13
-api-1     | /timeout/slow: timed_out delay_ms=1000 timeout_ms=500 total_ms=519.18
-api-1     | INFO:     192.168.65.1:41930 - "GET /timeout/slow HTTP/1.1" 200 OK
+api-1     | /tutorials/async/timeout/slow: timed_out delay_ms=1000 timeout_ms=500 total_ms=519.18
+api-1     | INFO:     192.168.65.1:41930 - "GET /tutorials/async/timeout/slow HTTP/1.1" 200 OK
 api-1     | /timeout worker 1: start delay_ms=1000
 api-1     | /timeout worker 1: cancelled duration_ms=500.93
 api-1     | /timeout worker 1: cleanup cleanup_ms=500.98
-api-1     | /timeout/slow: timed_out delay_ms=1000 timeout_ms=500 total_ms=501.06
-api-1     | INFO:     192.168.65.1:57570 - "GET /timeout/slow HTTP/1.1" 200 OK
+api-1     | /tutorials/async/timeout/slow: timed_out delay_ms=1000 timeout_ms=500 total_ms=501.06
+api-1     | INFO:     192.168.65.1:57570 - "GET /tutorials/async/timeout/slow HTTP/1.1" 200 OK
 ```
 
 What this output proves:
 
-- `/timeout/fanout` completed because all 15 workers finished in about 301 ms, which stayed inside the 500 ms timeout budget
+- `/tutorials/async/timeout/fanout` completed because all 15 workers finished in about 301 ms, which stayed inside the 500 ms timeout budget
 - each completed worker still executed its cleanup path
-- `/timeout/slow` timed out at about 500 to 519 ms, well before the 1000 ms sleep could complete
+- `/tutorials/async/timeout/slow` timed out at about 500 to 519 ms, well before the 1000 ms sleep could complete
 - cancellation was not silent: the worker logged `cancelled`, then still logged cleanup
 - the HTTP response was still `200 OK` because the endpoint returns a structured timeout result instead of surfacing a server error
 
 
-## What to observe from `/timeout/slow`
+## What to observe from `/tutorials/async/timeout/slow`
 
 If `delay_ms < timeout_ms`:
 
@@ -234,7 +234,7 @@ If `delay_ms > timeout_ms`:
 - the response is `timed_out`
 
 
-## What to observe from `/timeout/fanout`
+## What to observe from `/tutorials/async/timeout/fanout`
 
 If all tasks fit inside the budget:
 
@@ -248,14 +248,14 @@ If the timeout expires first:
 - each cancelled worker should still hit its cleanup path
 - the response is `timed_out`
 
-This is the key difference from `/timeout/slow`: one deadline now affects a whole fan-out tree.
+This is the key difference from `/tutorials/async/timeout/slow`: one deadline now affects a whole fan-out tree.
 
 
 ## Real-world applications
 
 ### 1. A single slow downstream dependency
 
-`/timeout/slow` maps directly to:
+`/tutorials/async/timeout/slow` maps directly to:
 
 - one HTTP call to another service
 - one Redis call
@@ -270,7 +270,7 @@ Why the timeout matters:
 
 ### 2. API aggregation with parallel subcalls
 
-`/timeout/fanout` maps directly to:
+`/tutorials/async/timeout/fanout` maps directly to:
 
 - fetch profile
 - fetch orders
@@ -309,9 +309,9 @@ Why the timeout matters:
 
 ## Practical takeaway
 
-`/timeout/slow` teaches: one timeout can cancel one slow awaitable.
+`/tutorials/async/timeout/slow` teaches: one timeout can cancel one slow awaitable.
 
-`/timeout/fanout` teaches: one timeout can cancel many unfinished child tasks together.
+`/tutorials/async/timeout/fanout` teaches: one timeout can cancel many unfinished child tasks together.
 
 That is the lesson to carry into production systems:
 

@@ -132,8 +132,8 @@ These are the kinds of tasks that separate levels more clearly than theory quest
 
 ### Junior-level sample tasks
 
-- Implement `/sleep/blocking` and `/sleep/async`, then explain why `/health` behaves differently under overlap.
-- Implement `/fanout/sequential` and `/fanout/gather`, then compare end-to-end latency for one request.
+- Implement `/tutorials/async/sleep/blocking` and `/tutorials/async/sleep/async`, then explain why `/health` behaves differently under overlap.
+- Implement `/tutorials/async/fanout/sequential` and `/tutorials/async/fanout/gather`, then compare end-to-end latency for one request.
 - Add `os.getpid()` to responses and explain what it reveals when running with one worker versus two.
 
 Expected evidence:
