@@ -239,3 +239,73 @@ sequenceDiagram
 - The earlier `/queue/drain` diagram focuses on the `await queue.join()` barrier. `6.1` and `6.2` focus on what happens **before** that barrier, inside the producer and around task scheduling.
 - None of the diagrams imply that `await q.put(i)` waits for the consumer to finish item `i`. `put()` only waits until the item is accepted into the queue, which may still be much earlier than `get()` or `task_done()`.
 - The difference between `6.1` and `6.2` is mostly control flow, not queue semantics. In `6.1`, the request coroutine directly runs producer code. In `6.2`, the request coroutine acts as a coordinator and both producer and consumer are background tasks.
+
+
+## App-level sequence: startup workers plus `/queue/enqueue` and `/queue/drain`
+
+This matches the implementation in `app/main.py` more closely:
+
+- `startup_queue_workers()` creates long-lived consumer tasks once when the app starts.
+- `/queue/enqueue` only produces jobs and returns after `put(...)` succeeds.
+- `/queue/drain` produces jobs and then waits at `queue.join()` until workers call `task_done()` for all queued jobs.
+- The consumer loop is **not redundant**. Without worker tasks already running, `enqueue` would only pile items into the queue and `drain` would wait forever.
+
+```mermaid
+sequenceDiagram
+    participant F as FastAPI app lifecycle
+    participant R1 as request: POST /queue/enqueue
+    participant R2 as request: POST /queue/drain
+    participant Q as shared asyncio.Queue
+    participant W1 as queue_worker(1)
+    participant W2 as queue_worker(2)
+
+    Note over F,W2: app startup
+    F->>W1: create_task(queue_worker(1))
+    F->>W2: create_task(queue_worker(2))
+    W1->>Q: await get()
+    W2->>Q: await get()
+
+    rect rgb(235, 245, 255)
+        Note over R1,W2: enqueue-only path
+        R1->>Q: await put(job 1)
+        Q-->>R1: accepted
+        R1->>Q: await put(job 2)
+        Q-->>R1: accepted
+        R1-->>R1: return 202 Accepted
+
+        Q-->>W1: job 1
+        W1->>W1: process job
+        W1->>Q: task_done()
+        W1->>Q: await get()
+
+        Q-->>W2: job 2
+        W2->>W2: process job
+        W2->>Q: task_done()
+        W2->>Q: await get()
+    end
+
+    rect rgb(245, 255, 235)
+        Note over R2,W2: drain path
+        R2->>Q: await put(job 3)
+        Q-->>R2: accepted
+        R2->>Q: await put(job 4)
+        Q-->>R2: accepted
+        R2->>Q: await join()
+        Note over R2: blocked until unfinished_tasks == 0
+
+        Q-->>W1: job 3
+        W1->>W1: process job
+        W1->>Q: task_done()
+
+        Q-->>W2: job 4
+        W2->>W2: process job
+        W2->>Q: task_done()
+
+        Q-->>R2: join() resumes
+        R2-->>R2: return 200 OK
+    end
+
+    Note over F,W2: app shutdown
+    F->>W1: cancel task
+    F->>W2: cancel task
+```

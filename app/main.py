@@ -21,63 +21,6 @@ async def health():
     return {"status": "ok"}
 
 
-async def queue_worker(worker_id: int) -> None:
-    global queue_failed_total
-    global queue_processed_total
-
-    print(f"/queue worker {worker_id}: started")
-    while True:
-        job = await job_queue.get()
-        try:
-            work_ms = job["work_ms"]
-            job_id = job["job_id"]
-            print(f"/queue worker {worker_id}: start job_id={job_id} work_ms={work_ms}")
-            await asyncio.sleep(work_ms / 1000)
-            queue_processed_total += 1
-            print(f"/queue worker {worker_id}: end job_id={job_id}")
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            queue_failed_total += 1
-            print(f"/queue worker {worker_id}: failed job={job} exc={exc!r}")
-        finally:
-            job_queue.task_done()
-
-
-@app.on_event("startup")
-async def startup_queue_workers() -> None:
-    queue_worker_tasks.clear()
-    for worker_id in range(1, QUEUE_WORKER_COUNT + 1):
-        queue_worker_tasks.append(asyncio.create_task(queue_worker(worker_id)))
-
-
-@app.on_event("shutdown")
-async def shutdown_queue_workers() -> None:
-    for task in queue_worker_tasks:
-        task.cancel()
-    if queue_worker_tasks:
-        await asyncio.gather(*queue_worker_tasks, return_exceptions=True)
-    queue_worker_tasks.clear()
-
-
-async def enqueue_jobs(n: int, work_ms: int) -> list[int]:
-    global queue_enqueued_total
-    global queue_next_job_id
-
-    enqueued_job_ids: list[int] = []
-    for _ in range(n):
-        queue_next_job_id += 1
-        job_id = queue_next_job_id
-        job = {
-            "job_id": job_id,
-            "work_ms": work_ms,
-            "enqueued_at_ms": round(time.time() * 1000),
-        }
-        await job_queue.put(job)
-        queue_enqueued_total += 1
-        enqueued_job_ids.append(job_id)
-
-    return enqueued_job_ids
 
 
 # TODO lab outline: keep these as comments until you implement the experiments.
@@ -276,6 +219,104 @@ async def bounded_semaphore(hold_seconds: int = 5, outside_seconds: int = 0):
 # - Under multiple Uvicorn workers, each process has its own queue and workers.
 
 
+#   The important separation is:
+
+#   - asyncio event loop: the scheduler that runs
+#     coroutines/tasks.
+#   - queue_worker() loop: your application’s
+#     consumer logic that repeatedly does get ->
+#     process -> task_done.
+#   - /queue/enqueue: submit work and return.
+#   - /queue/drain: submit work and then wait for
+#     consumers to finish it with queue.join().
+
+#   So:
+
+#   - Without consumers, /queue/enqueue can still put
+#     items into the queue, but nothing will ever
+#     process them.
+#   - Without consumers, /queue/drain will hang
+#     forever, because join() only resumes after
+#     workers call task_done().
+#   - The queue does not “auto-consume” just because
+#     you are using asyncio.
+
+async def queue_worker(worker_id: int) -> None:
+    global queue_failed_total
+    global queue_processed_total
+
+    print(f"/queue worker {worker_id}: started")
+    while True:
+        job = await job_queue.get()
+        try:
+            work_ms = job["work_ms"]
+            job_id = job["job_id"]
+            print(f"/queue worker {worker_id}: start job_id={job_id} work_ms={work_ms}")
+            await asyncio.sleep(work_ms / 1000)
+            queue_processed_total += 1
+            print(f"/queue worker {worker_id}: end job_id={job_id}")
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            queue_failed_total += 1
+            print(f"/queue worker {worker_id}: failed job={job} exc={exc!r}")
+        finally:
+            job_queue.task_done()
+
+
+@app.on_event("startup")
+async def startup_queue_workers() -> None:
+    queue_worker_tasks.clear()
+    for worker_id in range(1, QUEUE_WORKER_COUNT + 1):
+        queue_worker_tasks.append(asyncio.create_task(queue_worker(worker_id)))
+
+
+@app.on_event("shutdown")
+async def shutdown_queue_workers() -> None:
+    for task in queue_worker_tasks:
+        task.cancel()
+    if queue_worker_tasks:
+        await asyncio.gather(*queue_worker_tasks, return_exceptions=True)
+    queue_worker_tasks.clear()
+
+
+#   What is safe here:
+
+#   - queue_next_job_id:
+#       - safe enough in one event loop because there
+#         is no await between reading/updating it
+#   - queue_enqueued_total += 1:
+#       - also safe enough for the same reason
+#   - await job_queue.put(job):
+#       - safe for coroutine coordination;
+#         asyncio.Queue is designed for this
+
+#  So the right label is:
+
+#   - coroutine-safe enough within one process
+#   - not thread-safe in the general sense
+#   - not cross-process safe
+
+async def enqueue_jobs(n: int, work_ms: int) -> list[int]:
+    global queue_enqueued_total
+    global queue_next_job_id
+
+    enqueued_job_ids: list[int] = []
+    for _ in range(n):
+        queue_next_job_id += 1
+        job_id = queue_next_job_id
+        job = {
+            "job_id": job_id,
+            "work_ms": work_ms,
+            "enqueued_at_ms": round(time.time() * 1000),
+        }
+        await job_queue.put(job)
+        queue_enqueued_total += 1
+        enqueued_job_ids.append(job_id)
+
+    return enqueued_job_ids
+
+# enqueue = “submit work”
 @app.post("/queue/enqueue")
 async def queue_enqueue(
     n: int = Query(default=10, ge=1, le=500),
@@ -299,7 +340,8 @@ async def queue_enqueue(
         "request_duration_ms": request_duration_ms,
     }
 
-
+# drain = “submit work and wait until all queued
+    work is finished”
 @app.post("/queue/drain")
 async def queue_drain(
     n: int = Query(default=10, ge=1, le=500),
