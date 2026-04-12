@@ -51,3 +51,19 @@ services:
       --web-port 8089
     volumes:
       - ./loadtest:/mnt/locust:ro
+
+  # TODO(celery-redis setup):
+  # Add a `redis` service here when you are ready to implement the real broker/backend.
+  #
+  # Suggested next services after `redis`:
+  # - `celery-worker`: consumes queued tasks
+  # - `celery-beat`: publishes scheduled tasks
+  #
+  # Suggested ownership:
+  # - `api`: submits tasks and exposes status endpoints
+  # - `redis`: broker + result backend
+  # - `celery-worker`: executes task bodies
+  # - `celery-beat`: schedules recurring task publication
+  #
+  # Keep these commented until you reach the implementation exercises so the
+  # repo stays documentation-first.

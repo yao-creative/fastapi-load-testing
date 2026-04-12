@@ -141,3 +141,53 @@ Suggested route order:
 - Celery monitoring: https://docs.celeryq.dev/en/stable/userguide/monitoring.html
 - Redis lists: https://redis.io/docs/latest/develop/data-types/lists/
 - Redis streams: https://redis.io/docs/latest/develop/data-types/streams/
+
+
+## Suggested folder organization and setup
+
+Before implementing any of the exercises, set up the project shape you expect to grow into.
+
+Suggested layout:
+
+```text
+app/
+ ├ api/
+ │  ├ tutorials_async.py
+ │  └ tutorials_celery_redis.py
+ ├ core/
+ │  ├ celery_app.py
+ │  ├ config.py
+ │  └ logging.py
+ ├ tasks/
+ │  ├ jobs.py
+ │  ├ pipelines.py
+ │  └ periodic.py
+ └ workers/
+    └ __init__.py
+docs/
+ └ tutorials/
+    └ celery-redis/
+       ├ 00-overview.md
+       ├ 01-submit-and-poll.md
+       ├ 02-retries-and-idempotency.md
+       └ ...
+docker-compose.yml
+```
+
+What each area is for:
+
+- `app/api/`: FastAPI routes that submit work or expose status.
+- `app/core/celery_app.py`: Celery app construction, broker URL, backend URL, queue config.
+- `app/tasks/`: task functions and workflow primitives.
+- `app/workers/`: worker-specific bootstrap or imports if you want a dedicated worker entrypoint.
+- `docs/tutorials/celery-redis/`: the learning track and implementation sequence.
+
+Suggested setup order:
+
+1. Create the doc files and the comment-form router first.
+2. Add `app/core/celery_app.py`.
+3. Add one small task module in `app/tasks/`.
+4. Add Redis and worker services in `docker-compose.yml`.
+5. Only then implement `01-submit-and-poll`.
+
+This belongs in `00` because folder shape is part of the overview, not a later exercise.

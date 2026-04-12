@@ -24,6 +24,7 @@ The async tutorial endpoints are implemented in `app/api/tutorials_async.py`.
 - [docs/tutorials/async/08-experiment-shared-state-race-and-lock.md](docs/tutorials/async/08-experiment-shared-state-race-and-lock.md)
 - [docs/frontier-ai-lab-application-examples.md](docs/frontier-ai-lab-application-examples.md)
 - [docs/asyncio-leveling-rubric.md](docs/asyncio-leveling-rubric.md)
+- [docs/celery-redis-leveling-rubric.md](docs/celery-redis-leveling-rubric.md)
 - [docs/tutorials/celery-redis/00-overview.md](docs/tutorials/celery-redis/00-overview.md)
 - [docs/tutorials/celery-redis/01-submit-and-poll.md](docs/tutorials/celery-redis/01-submit-and-poll.md)
 - [docs/tutorials/celery-redis/02-retries-and-idempotency.md](docs/tutorials/celery-redis/02-retries-and-idempotency.md)

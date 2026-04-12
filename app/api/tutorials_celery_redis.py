@@ -45,3 +45,27 @@ router = APIRouter(
 # - Only after that add retries, progress updates, and routed queues.
 # - If you later choose to add a real Celery stack, keep the route contract
 #   stable so the docs and the exercise sequence still match.
+#
+# TODO map for this repo:
+# - Edit `app/core/celery_app.py` when you are ready to construct the real Celery app.
+# - Edit `app/core/config.py` when you want Redis URLs and queue names in one place.
+# - Add first single-job tasks in `app/tasks/jobs.py`.
+# - Add fan-out / fan-in workflows in `app/tasks/pipelines.py`.
+# - Add scheduled jobs in `app/tasks/periodic.py`.
+# - Add worker / beat bootstrap notes in `app/workers/`.
+# - Add Redis / worker / beat services in `docker-compose.yml` after the doc-first pass.
+#
+# TODO(01):
+# Add `POST /jobs/submit` and `GET /jobs/{task_id}` here.
+#
+# TODO(02):
+# Add a retry-demo route here only after `01` works cleanly.
+#
+# TODO(03):
+# Add a progress-demo route here after you decide what progress metadata looks like.
+#
+# TODO(04):
+# Add a fan-out / fan-in route here after you have at least one real child task.
+#
+# TODO(06):
+# Add a beat-trigger or schedule-inspection route here only if it improves learning.
