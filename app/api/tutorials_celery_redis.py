@@ -1,11 +1,5 @@
-import logging
+from fastapi import APIRouter
 
-from fastapi import APIRouter, Depends, Query, status
-
-from app.core.tutorial_runtime import TutorialRuntime, get_tutorial_runtime
-
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/tutorials/celery-redis",
@@ -13,92 +7,41 @@ router = APIRouter(
 )
 
 
-@router.post("/jobs/submit", status_code=status.HTTP_202_ACCEPTED)
-async def submit_job(
-    work_ms: int = Query(default=120, ge=1, le=60_000),
-    queue: str = Query(default="light"),
-    fail_until_attempt: int = Query(default=0, ge=0, le=5),
-    idempotency_key: str | None = Query(default=None),
-    runtime: TutorialRuntime = Depends(get_tutorial_runtime),
-):
-    # This mirrors the request-time "publish task to broker and return task_id"
-    # pattern from the docs. The actual work is done later by the tutorial workers.
-    task = await runtime.submit_celery_job(
-        work_ms=work_ms,
-        queue=queue,
-        fail_until_attempt=fail_until_attempt,
-        idempotency_key=idempotency_key,
-    )
-    logger.info(
-        "/tutorials/celery-redis/jobs/submit: task_id=%s queue=%s fail_until_attempt=%s",
-        task["task_id"],
-        queue,
-        fail_until_attempt,
-    )
-    return {
-        "status": "accepted",
-        "task_id": task["task_id"],
-        "queue": queue,
-        "status_url": f"/tutorials/celery-redis/jobs/{task['task_id']}",
-    }
-
-
-@router.get("/jobs/{task_id}")
-async def get_job(
-    task_id: str,
-    runtime: TutorialRuntime = Depends(get_tutorial_runtime),
-):
-    # Celery users usually poll task state through the result backend. Here we
-    # expose the same idea from the tutorial runtime's in-memory task store.
-    return runtime.get_celery_task(task_id)
-
-
-@router.post("/jobs/fanout", status_code=status.HTTP_202_ACCEPTED)
-async def submit_fanout(
-    num_tasks: int = Query(default=5, ge=1, le=50),
-    work_ms: int = Query(default=60, ge=1, le=60_000),
-    queue: str = Query(default="heavy"),
-    runtime: TutorialRuntime = Depends(get_tutorial_runtime),
-):
-    fanout = await runtime.submit_celery_fanout(
-        num_tasks=num_tasks,
-        work_ms=work_ms,
-        queue=queue,
-    )
-    logger.info(
-        "/tutorials/celery-redis/jobs/fanout: parent_task_id=%s group_id=%s num_tasks=%s",
-        fanout["parent_task_id"],
-        fanout["group_id"],
-        num_tasks,
-    )
-    return {
-        "status": "accepted",
-        "group_id": fanout["group_id"],
-        "parent_task_id": fanout["parent_task_id"],
-        "child_task_ids": fanout["child_task_ids"],
-        "status_url": f"/tutorials/celery-redis/jobs/{fanout['parent_task_id']}",
-    }
-
-
-@router.post("/beat/tick", status_code=status.HTTP_202_ACCEPTED)
-async def beat_tick(
-    queue: str = Query(default="light"),
-    work_ms: int = Query(default=40, ge=1, le=60_000),
-    runtime: TutorialRuntime = Depends(get_tutorial_runtime),
-):
-    # Beat is the scheduler, not the worker. This endpoint simulates beat
-    # publishing one scheduled task into the broker so you can inspect it.
-    task = await runtime.publish_celery_beat_job(queue=queue, work_ms=work_ms)
-    logger.info("/tutorials/celery-redis/beat/tick: task_id=%s queue=%s", task["task_id"], queue)
-    return {
-        "status": "accepted",
-        "published_by": "beat",
-        "task_id": task["task_id"],
-        "queue": queue,
-        "status_url": f"/tutorials/celery-redis/jobs/{task['task_id']}",
-    }
-
-
-@router.get("/queues/stats")
-async def queue_stats(runtime: TutorialRuntime = Depends(get_tutorial_runtime)):
-    return runtime.celery_queue_stats()
+# Learning goal:
+# Build the same kind of intuition for Celery + Redis that `tutorials_async.py`
+# builds for asyncio:
+# - what runs in the API process versus the worker process
+# - what Redis is doing as broker and result backend
+# - why request/response paths should stay short
+# - where retries, idempotency, queue routing, and fan-in workflows matter
+#
+# Implementation policy for this file:
+# Leave the exercises unimplemented on purpose. This file is a study scaffold,
+# not the answer key. When you are ready to practice, add one route at a time.
+#
+# Suggested tutorial route sequence:
+# 00. overview doc only, not an endpoint
+# 01. POST /tutorials/celery-redis/jobs/submit
+#     Learning goal: return 202 Accepted quickly and hand back a task id.
+# 02. GET /tutorials/celery-redis/jobs/{task_id}
+#     Learning goal: poll task state and understand result-backend reads.
+# 03. POST /tutorials/celery-redis/jobs/retry-demo
+#     Learning goal: model transient failure, retry, and idempotency.
+# 04. POST /tutorials/celery-redis/jobs/progress-demo
+#     Learning goal: expose stage-by-stage job progress.
+# 05. POST /tutorials/celery-redis/jobs/fanout
+#     Learning goal: model group / chord style fan-out and fan-in.
+# 06. POST /tutorials/celery-redis/beat/tick
+#     Learning goal: understand scheduler publish versus worker execution.
+# 07. GET /tutorials/celery-redis/queues/stats
+#     Learning goal: inspect queue depth, worker ownership, and backlog.
+# 08. POST /tutorials/celery-redis/streams/compare
+#     Learning goal: explain when Redis Streams fit better than Celery tasks.
+#
+# Suggested implementation guide:
+# - Start with the 202 submit + poll-status pair.
+# - Keep the first version deliberately small: one queue, one fake task body,
+#   and a minimal status model.
+# - Only after that add retries, progress updates, and routed queues.
+# - If you later choose to add a real Celery stack, keep the route contract
+#   stable so the docs and the exercise sequence still match.
