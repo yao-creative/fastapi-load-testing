@@ -9,21 +9,25 @@ Minimal scaffolding:
 - Dockerized API
 - Dockerized Locust runner + UI
 
-Endpoint implementations for asyncio variations are intentionally left to you (see TODO comments in `app/api/tutorials_async.py`).
+The async tutorial endpoints are implemented in `app/api/tutorials_async.py`.
 
 ## Docs
 
-- [docs/tutorials/async/00-asyncio-sequence-diagrams.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/async/00-asyncio-sequence-diagrams.md)
-- [docs/tutorials/async/01-experiment-sleep-blocking-vs-async.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/async/01-experiment-sleep-blocking-vs-async.md)
-- [docs/tutorials/async/02-experiment-cpu-inline-vs-to-thread.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/async/02-experiment-cpu-inline-vs-to-thread.md)
-- [docs/tutorials/async/03-experiment-fanout-sequential-vs-gather.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/async/03-experiment-fanout-sequential-vs-gather.md)
-- [docs/tutorials/async/04-experiment-timeout-and-cancellation.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/async/04-experiment-timeout-and-cancellation.md)
-- [docs/tutorials/async/05-experiment-bounded-resource-semaphore.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/async/05-experiment-bounded-resource-semaphore.md)
-- [docs/tutorials/async/06-experiment-producer-consumer-asyncio-queue.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/async/06-experiment-producer-consumer-asyncio-queue.md)
-- [docs/tutorials/async/07-experiment-gather-vs-taskgroup-failure-propagation.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/async/07-experiment-gather-vs-taskgroup-failure-propagation.md)
-- [docs/tutorials/async/08-experiment-shared-state-race-and-lock.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/async/08-experiment-shared-state-race-and-lock.md)
-- [docs/frontier-ai-lab-application-examples.md](/Users/yao/projects/fastapi-load-testing/docs/frontier-ai-lab-application-examples.md)
-- [docs/asyncio-leveling-rubric.md](/Users/yao/projects/fastapi-load-testing/docs/asyncio-leveling-rubric.md)
+- [docs/tutorials/async/00-asyncio-sequence-diagrams.md](docs/tutorials/async/00-asyncio-sequence-diagrams.md)
+- [docs/tutorials/async/01-experiment-sleep-blocking-vs-async.md](docs/tutorials/async/01-experiment-sleep-blocking-vs-async.md)
+- [docs/tutorials/async/02-experiment-cpu-inline-vs-to-thread.md](docs/tutorials/async/02-experiment-cpu-inline-vs-to-thread.md)
+- [docs/tutorials/async/03-experiment-fanout-sequential-vs-gather.md](docs/tutorials/async/03-experiment-fanout-sequential-vs-gather.md)
+- [docs/tutorials/async/04-experiment-timeout-and-cancellation.md](docs/tutorials/async/04-experiment-timeout-and-cancellation.md)
+- [docs/tutorials/async/05-experiment-bounded-resource-semaphore.md](docs/tutorials/async/05-experiment-bounded-resource-semaphore.md)
+- [docs/tutorials/async/06-experiment-producer-consumer-asyncio-queue.md](docs/tutorials/async/06-experiment-producer-consumer-asyncio-queue.md)
+- [docs/tutorials/async/07-experiment-gather-vs-taskgroup-failure-propagation.md](docs/tutorials/async/07-experiment-gather-vs-taskgroup-failure-propagation.md)
+- [docs/tutorials/async/08-experiment-shared-state-race-and-lock.md](docs/tutorials/async/08-experiment-shared-state-race-and-lock.md)
+- [docs/frontier-ai-lab-application-examples.md](docs/frontier-ai-lab-application-examples.md)
+- [docs/asyncio-leveling-rubric.md](docs/asyncio-leveling-rubric.md)
+- [docs/tutorials/celery-redis/README.md](docs/tutorials/celery-redis/README.md)
+- [docs/tutorials/celery-redis/00-celery-redis-sequence-diagrams.md](docs/tutorials/celery-redis/00-celery-redis-sequence-diagrams.md)
+- [docs/tutorials/celery-redis/01-high-roi-exercises.md](docs/tutorials/celery-redis/01-high-roi-exercises.md)
+- [docs/tutorials/celery-redis/02-frontier-lab-company-application-examples.md](docs/tutorials/celery-redis/02-frontier-lab-company-application-examples.md)
 
 ## Local (uv)
 - Install deps and create a venv:
@@ -44,20 +48,40 @@ uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 curl http://localhost:8000/health
 ```
 
+- Open the generated OpenAPI UI to confirm methods and query params:
+
+```bash
+open http://localhost:8000/docs
+```
+
+## Calling The Async Tutorials
+
+Most tutorial endpoints are `GET`. The queue lab is the exception:
+
+```bash
+curl -X POST "http://localhost:8000/tutorials/async/queue/enqueue?n=5&work_ms=250"
+curl -X POST "http://localhost:8000/tutorials/async/queue/drain?n=5&work_ms=250"
+curl "http://localhost:8000/tutorials/async/queue/stats"
+```
+
+If you call `/tutorials/async/queue/enqueue` or `/tutorials/async/queue/drain` without `-X POST`, FastAPI will return `405 Method Not Allowed`.
+Under Docker, the API runs with `--workers 2`, so the in-memory queue runtime is per worker process. That means `/tutorials/async/queue/stats`, job IDs, and counters are not global across the whole service.
+
 ## Docker (API + Locust)
 - Start API + Locust UI:
 
 ```bash
-docker compose up --build
+docker compose up --build --watch
 ```
 
-- Start in dev mode with live code sync (Compose Watch):
+- If the stack is already running and you only want to attach file watching:
 
 ```bash
 docker compose watch
 ```
 
-- Note: Watch is configured to **sync code and restart** the API container so changes apply while still running with **2 uvicorn workers** (it does not use `--reload`).
+- Note: watch uses `sync+restart`, so changes under `./app` are pushed into the running container and the API container is restarted. Start with `docker compose up --build --watch` so the image and watched code begin from the same revision.
+- Dependency or image changes in `pyproject.toml`, `uv.lock`, or `Dockerfile` trigger a rebuild automatically.
 
 - Open Locust UI at `http://localhost:8089`
 - Host should be `http://api:8000`
