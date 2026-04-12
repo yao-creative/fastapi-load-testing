@@ -13,6 +13,8 @@ Suggested final import path:
 - `app.core.celery_app:celery_app`
 """
 
+from celery import Celery
+from core.config import settings
 
 # TODO: add `from celery import Celery` after you decide to install Celery.
 # TODO: create `celery_app = Celery(...)`.
@@ -25,5 +27,19 @@ def celery_app_import_path() -> str:
     """
     Stable string to reference from docs, worker commands, and later compose setup.
     """
+    celery_app = Celery(
+        broker=settings.redis_broker_url,
+        backend=settings.redis_result_backend_url,
+        task_serializer="json",
+        result_serializer="json",
+        accept_content=["json"],
+        timezone="UTC",
+        enable_utc=True,
+    )
 
-    return "app.core.celery_app:celery_app"
+    celery_app.conf.task_routes = {
+        "app.tasks.jobs.*": {"queue": "jobs"},
+        "app.tasks.pipelines.*": {"queue": "pipelines"},
+        "app.tasks.periodic.*": {"queue": "periodic"},
+    }
+    return celery_app
