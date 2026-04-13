@@ -67,3 +67,55 @@ services:
   #
   # Keep these commented until you reach the implementation exercises so the
   # repo stays documentation-first.
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  worker:
+    build: .
+    command: celery -A app.core.celery_app worker -l info
+    depends_on:
+      - redis
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./app
+          target: /app/app
+        - action: rebuild
+          path: ./pyproject.toml
+        - action: rebuild
+          path: ./uv.lock
+        - action: rebuild
+          path: ./Dockerfile
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - DEFAULT_CELERY_QUEUE=jobs
+      - HEAVY_CELERY_QUEUE=pipelines
+      - PERIODIC_CELERY_QUEUE=periodic
+
+  beat:
+    build: .
+    command: celery -A app.core.celery_app beat -l info
+    depends_on:
+      - redis
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./app
+          target: /app/app
+        - action: rebuild
+          path: ./pyproject.toml
+        - action: rebuild
+          path: ./uv.lock
+        - action: rebuild
+          path: ./Dockerfile
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - DEFAULT_CELERY_QUEUE=jobs
+      - HEAVY_CELERY_QUEUE=pipelines
+      - PERIODIC_CELERY_QUEUE=periodic
