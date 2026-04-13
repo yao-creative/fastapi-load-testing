@@ -21,6 +21,35 @@ Minimum success criteria:
 - poll exposes `PENDING`, `STARTED`, `SUCCESS`, `FAILURE`
 - route contract is clear even before the task body becomes complex
 
+## Sequence diagram
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API as FastAPI route
+    participant Broker as Redis broker
+    participant Worker as Celery worker
+    participant Backend as Redis backend
+
+    Client->>API: POST /jobs/submit
+    API->>Broker: publish task message
+    API-->>Client: 202 Accepted + task_id
+    Worker->>Broker: reserve task
+    Worker->>Worker: execute task body
+    Worker->>Backend: write state/result
+    Client->>API: GET /jobs/{task_id}
+    API->>Backend: read task state/result
+    API-->>Client: task state payload
+```
+
+## Implementation hints
+
+- Start with one integer input like `duration_ms` so the route contract stays obvious.
+- Return `202 Accepted` with `task_id`, `status`, and a poll URL or route hint.
+- Keep the poll route read-only. It should only inspect backend state.
+- Decide early whether a missing task id returns backend-style `PENDING`, synthetic `UNKNOWN`, or HTTP `404`.
+- Do not call `.get()` or wait for completion in the request handler.
+
 Follow-up questions:
 
 - When should you store job state in your own database instead of only the result backend?
