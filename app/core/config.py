@@ -1,22 +1,23 @@
 """
 Configuration skeleton for the tutorial track.
 
-Now uses Pydantic BaseSettings for proper config management.
-
 Values can be overridden using environment variables for real deployments.
 """
 
-from pydantic import BaseSettings, Field
+from dataclasses import dataclass
+from os import getenv
 
 
-class Settings(BaseSettings):
+@dataclass(slots=True)
+class Settings:
     # Celery/Redis configuration
-    redis_host: str = Field("localhost", env="REDIS_HOST")
-    redis_port: int = Field(6379, env="REDIS_PORT")
-    redis_db: int = Field(0, env="REDIS_DB")
+    redis_host: str = getenv("REDIS_HOST", "localhost")
+    redis_port: int = int(getenv("REDIS_PORT", "6379"))
+    redis_db: int = int(getenv("REDIS_DB", "0"))
 
-    default_celery_queue: str = Field("light", env="DEFAULT_CELERY_QUEUE")
-    heavy_celery_queue: str = Field("heavy", env="HEAVY_CELERY_QUEUE")
+    default_celery_queue: str = getenv("DEFAULT_CELERY_QUEUE", "jobs")
+    heavy_celery_queue: str = getenv("HEAVY_CELERY_QUEUE", "pipelines")
+    periodic_celery_queue: str = getenv("PERIODIC_CELERY_QUEUE", "periodic")
 
     @property
     def redis_broker_url(self) -> str:
@@ -28,7 +29,11 @@ class Settings(BaseSettings):
 
     @property
     def celery_task_queues(self) -> list[str]:
-        return [self.default_celery_queue, self.heavy_celery_queue]
+        return [
+            self.default_celery_queue,
+            self.heavy_celery_queue,
+            self.periodic_celery_queue,
+        ]
 
     # For later: optional beat schedule intervals can be added as settings fields.
 
