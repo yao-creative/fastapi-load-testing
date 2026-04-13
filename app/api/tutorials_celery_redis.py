@@ -1,8 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from celery.result import AsyncResult
 from app.core.celery_app import celery_app
-from app.tasks.jobs import simulate_background_work
-
+from app.tasks.jobs import simulate_background_work, simulate_background_work_with_failure
 router = APIRouter(
     prefix="/tutorials/celery-redis",
     tags=["tutorials-celery-redis"],
@@ -47,15 +46,17 @@ router = APIRouter(
 #     - Do not wait for `.get()` inside the request handler.
 #     - Log the task id at submit time so later poll/debug flows can correlate.
 
-@router.post("/jobs/submit")
-async def submit_job(duration_ms: int):
+@router.post("/jobs/submit", status_code=202)
+async def submit_job(duration_ms: int, request: Request):
     task = simulate_background_work.delay(duration_ms)
-    return {"task_id": task.id, "status": "queued", "poll_url": f"/jobs/{task.id}"}
 
-@router.get("/jobs/{task_id}")
-async def get_job(task_id: str):
-    task = AsyncResult(task_id, app=celery_app)
-    return {"task_id": task.id, "state": task.state, "ready": task.ready()}
+    return {
+        "task_id": task.id,
+        "status": "PENDING",
+        "poll_url": str(request.url_for("get_job", task_id=task.id)),
+    }
+
+
 
 # 02. GET /tutorials/celery-redis/jobs/{task_id}
 #     Learning goal: poll task state and understand result-backend reads.
@@ -69,6 +70,17 @@ async def get_job(task_id: str):
 #     - Decide explicitly how to represent an unknown task id:
 #       backend-only `PENDING`, synthetic `UNKNOWN`, or HTTP `404`.
 #     - Make the first version small: state, readiness, result/error summary.
+@router.get("/jobs/{task_id}", name="get_job") # Polling the async task running.
+async def get_job(task_id: str):
+    task = AsyncResult(task_id, app=celery_app)
+    response = {"task_id": task.id, "state": task.state, "ready": task.ready()}
+
+    if task.state == "SUCCESS":
+        response["result"] = task.result
+    elif task.state == "FAILURE":
+        response["error"] = str(task.result)
+
+    return response
 
 # 03. POST /tutorials/celery-redis/jobs/retry-demo
 #     Learning goal: model transient failure, retry, and idempotency.
@@ -81,6 +93,10 @@ async def get_job(task_id: str):
 #     - Make the side effect duplicate-safe before enabling retry.
 #     - Persist or derive an idempotency key from business input, not just task id.
 #     - Surface attempt count in logs or task metadata so the retry is visible.
+@router.get("/jobs/retry-demo", status_code=202)
+async def retry_demo(request: Request):
+    task = simulate_background_work_with_failure.delay(duration_ms=1000)
+    return {"task_id": task.id, "status": "PENDING", "poll_url": str(request.url_for("get_job", task_id=task.id))}
 
 # 04. POST /tutorials/celery-redis/jobs/progress-demo
 #     Learning goal: expose stage-by-stage job progress.

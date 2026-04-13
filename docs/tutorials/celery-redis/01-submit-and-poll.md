@@ -54,3 +54,51 @@ Follow-up questions:
 
 - When should you store job state in your own database instead of only the result backend?
 - What should the response shape be if the task does not exist?
+
+## Verified In This Repo
+
+Current implementation:
+
+- `POST /tutorials/celery-redis/jobs/submit?duration_ms=2000`
+- `GET /tutorials/celery-redis/jobs/{task_id}`
+
+Verified example:
+
+```bash
+curl -X POST "http://localhost:8000/tutorials/celery-redis/jobs/submit?duration_ms=2000"
+```
+
+Example response:
+
+```json
+{
+  "task_id": "c268f507-96c5-4f80-938e-2c5c58256212",
+  "status": "PENDING",
+  "poll_url": "http://localhost:8000/tutorials/celery-redis/jobs/c268f507-96c5-4f80-938e-2c5c58256212"
+}
+```
+
+Then poll the returned URL:
+
+```bash
+curl "http://localhost:8000/tutorials/celery-redis/jobs/c268f507-96c5-4f80-938e-2c5c58256212"
+```
+
+Example terminal-state response:
+
+```json
+{
+  "task_id": "c268f507-96c5-4f80-938e-2c5c58256212",
+  "state": "SUCCESS",
+  "ready": true,
+  "result": "done"
+}
+```
+
+Notes:
+
+- This confirms the basic submit-and-poll contract for tutorial `01`.
+- This does not complete tutorial `02`; that exercise is about retries and idempotency, not polling.
+- The current implementation shows `PENDING` and `SUCCESS` cleanly.
+- If you want this tutorial to also demonstrate `STARTED`, enable Celery started-state tracking in the Celery app config.
+- The submit route currently accepts `duration_ms` as a query parameter. That is acceptable for the tutorial, though a small JSON body would be closer to a production-style submit API.
