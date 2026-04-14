@@ -149,11 +149,12 @@ async def retry_demo(request: Request):
 #     - Preserve the current stage in failure output so the operator knows where
 #       the task died.
 @router.post("/jobs/progress-demo", status_code=202)
-async def progress_demo(request: Request):
+async def progress_demo(request: Request, fail_stage: str = None):
     return enqueue_job(
         simulate_background_work_with_progress,
         request,
         duration_ms=5000,
+        fail_stage=fail_stage,
     )
 
 # 05. POST /tutorials/celery-redis/jobs/fanout

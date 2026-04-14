@@ -9,6 +9,8 @@ Suggested first tasks to add here:
 """
 import time
 import logging
+from celery.exceptions import Ignore
+
 from app.core.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -52,31 +54,43 @@ def simulate_background_work_with_failure(self, duration_ms: int):
 
 # Router-tracked tutorial 03 job task: progress-reporting demo.
 @celery_app.task(bind=True)
-def simulate_background_work_with_progress(self, duration_ms: int):
+def simulate_background_work_with_progress(self, duration_ms: int = 5000, fail_stage: str = None):
     stages = [
-        "fetching-input",
-        "processing-data",
-        "storing-output",
+        "fetching",
+        "processing",
+        "storing",
     ]
     step_duration_seconds = duration_ms / 1000
+    try:
+        for index, stage in enumerate(stages, start=1):
+            if stage == fail_stage:
+                raise Exception(f"Simulated failure at stage: {stage}")
+            self.update_state(
+                state="PROGRESS",
+                meta={
+                    "stage": stage,
+                    "current_step": index,
+                    "total_steps": len(stages),
+                },
+            )
+            time.sleep(step_duration_seconds)
 
-    for index, stage in enumerate(stages, start=1):
+        return {
+            "status": "done",
+            "stage": "success",
+            "total_steps": len(stages),
+            "duration_ms": duration_ms,
+        }
+
+    except Exception as e:
+        logger.exception("Error updating state")
         self.update_state(
-            state="PROGRESS",
+            state="FAILURE",
             meta={
-                "stage": stage,
-                "current_step": index,
-                "total_steps": len(stages),
-                "progress_percent": int(index / len(stages) * 100),
+                "stage": "error",
+                "error": str(e),
             },
         )
-        time.sleep(step_duration_seconds)
-
-    return {
-        "status": "done",
-        "stage": "success",
-        "total_steps": len(stages),
-        "duration_ms": duration_ms,
-    }
-
+        raise Ignore()
+    
 # TODO: keep "single task" exercises here; put multi-task workflows in `pipelines.py`.
