@@ -1,4 +1,4 @@
-# 05: Queue Routing And Isolation
+# 06: Queue Routing And Isolation
 
 Date: 2026-04-12
 

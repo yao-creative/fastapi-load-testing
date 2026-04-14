@@ -2,6 +2,7 @@
 
 ## Generic 
 
+- I'd like for the worktrees to ALWAYS be created withing .agents/.worktrees/<worktree-branch-name>
 - At the end of every response always critique my code and give me a two sentence next step on what I could improve. I want to be compared against the top 1% frontier startups practices.
 
 ## Tutorial Documentation Skeleton
