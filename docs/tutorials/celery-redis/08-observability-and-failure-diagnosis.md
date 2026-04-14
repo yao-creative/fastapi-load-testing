@@ -1,4 +1,4 @@
-# 07: Observability And Failure Diagnosis
+# 08: Observability And Failure Diagnosis
 
 Date: 2026-04-12
 

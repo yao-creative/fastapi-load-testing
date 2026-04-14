@@ -1,4 +1,4 @@
-# 08: Celery Vs Redis Streams
+# 09: Celery Vs Redis Streams
 
 Date: 2026-04-12
 

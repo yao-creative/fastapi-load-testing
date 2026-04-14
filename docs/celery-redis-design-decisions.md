@@ -445,8 +445,9 @@ These are the defaults that keep small Celery + Redis systems from becoming unre
 ## Recommended reading alongside this file
 
 - [docs/tutorials/celery-redis/00-overview.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/celery-redis/00-overview.md)
-- [docs/tutorials/celery-redis/01-submit-and-poll.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/celery-redis/01-submit-and-poll.md)
-- [docs/tutorials/celery-redis/04-fanout-and-fanin.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/celery-redis/04-fanout-and-fanin.md)
-- [docs/tutorials/celery-redis/05-queue-routing-and-isolation.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/celery-redis/05-queue-routing-and-isolation.md)
-- [docs/tutorials/celery-redis/08-celery-vs-redis-streams.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/celery-redis/08-celery-vs-redis-streams.md)
+- [docs/tutorials/celery-redis/01-what-runs-where.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/celery-redis/01-what-runs-where.md)
+- [docs/tutorials/celery-redis/02-submit-and-poll.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/celery-redis/02-submit-and-poll.md)
+- [docs/tutorials/celery-redis/05-fanout-and-fanin.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/celery-redis/05-fanout-and-fanin.md)
+- [docs/tutorials/celery-redis/06-queue-routing-and-isolation.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/celery-redis/06-queue-routing-and-isolation.md)
+- [docs/tutorials/celery-redis/09-celery-vs-redis-streams.md](/Users/yao/projects/fastapi-load-testing/docs/tutorials/celery-redis/09-celery-vs-redis-streams.md)
 - [docs/celery-redis-leveling-rubric.md](/Users/yao/projects/fastapi-load-testing/docs/celery-redis-leveling-rubric.md)

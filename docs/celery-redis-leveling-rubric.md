@@ -253,17 +253,19 @@ Signal of a good answer:
 ## Recommended Practice Order In This Repo
 
 1. `docs/tutorials/celery-redis/00-overview.md`
-2. `docs/tutorials/celery-redis/01-submit-and-poll.md`
-3. `docs/tutorials/celery-redis/02-retries-and-idempotency.md`
-4. `docs/tutorials/celery-redis/03-progress-reporting.md`
-5. `docs/tutorials/celery-redis/04-fanout-and-fanin.md`
-6. `docs/tutorials/celery-redis/05-queue-routing-and-isolation.md`
-7. `docs/tutorials/celery-redis/06-periodic-jobs-and-beat.md`
-8. `docs/tutorials/celery-redis/07-observability-and-failure-diagnosis.md`
-9. `docs/tutorials/celery-redis/08-celery-vs-redis-streams.md`
+2. `docs/tutorials/celery-redis/01-what-runs-where.md`
+3. `docs/tutorials/celery-redis/02-submit-and-poll.md`
+4. `docs/tutorials/celery-redis/03-retries-and-idempotency.md`
+5. `docs/tutorials/celery-redis/04-progress-reporting.md`
+6. `docs/tutorials/celery-redis/05-fanout-and-fanin.md`
+7. `docs/tutorials/celery-redis/06-queue-routing-and-isolation.md`
+8. `docs/tutorials/celery-redis/07-periodic-jobs-and-beat.md`
+9. `docs/tutorials/celery-redis/08-observability-and-failure-diagnosis.md`
+10. `docs/tutorials/celery-redis/09-celery-vs-redis-streams.md`
 
 Why this order:
-- Start with execution boundaries and API contract shape.
+- Start with execution boundaries and the basic runtime map.
+- Then learn the API contract shape.
 - Then learn safe retries and duplicate protection.
 - Then add progress and workflow structure.
 - Then learn workload isolation and recurring jobs.

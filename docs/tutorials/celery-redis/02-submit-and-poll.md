@@ -1,4 +1,4 @@
-# 01: Submit And Poll
+# 02: Submit And Poll
 
 Date: 2026-04-12
 
@@ -97,8 +97,8 @@ Example terminal-state response:
 
 Notes:
 
-- This confirms the basic submit-and-poll contract for tutorial `01`.
-- This does not complete tutorial `02`; that exercise is about retries and idempotency, not polling.
+- This confirms the basic submit-and-poll contract for tutorial `02`.
+- This does not complete tutorial `03`; that exercise is about retries and idempotency, not polling.
 - The current implementation shows `PENDING` and `SUCCESS` cleanly.
 - If you want this tutorial to also demonstrate `STARTED`, enable Celery started-state tracking in the Celery app config.
 - The submit route currently accepts `duration_ms` as a query parameter. That is acceptable for the tutorial, though a small JSON body would be closer to a production-style submit API.
