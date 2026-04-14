@@ -56,10 +56,15 @@ def extract_task_meta(task: AsyncResult) -> Any | None:
 #
 # Suggested tutorial route sequence:
 # 00. overview doc only, not an endpoint
+# 01. what-runs-where doc only, not an endpoint
 
 
-# 01. POST /tutorials/celery-redis/jobs/submit
+# 02. POST /tutorials/celery-redis/jobs/submit
 #     Learning goal: return 202 Accepted quickly and hand back a task id.
+#     Sub-goals:
+#     - keep the HTTP request short
+#     - hand the client a stable task id
+#     - make "submit now, poll later" feel normal
 #     Suggested request shape:
 #     - `duration_ms: int` for the toy version, or a small JSON body if you want
 #       the task contract to resemble production code.
@@ -77,8 +82,12 @@ async def submit_job(duration_ms: int, request: Request):
 
 
 
-# 01. GET /tutorials/celery-redis/jobs/{task_id}
+# 02. GET /tutorials/celery-redis/jobs/{task_id}
 #     Learning goal: poll task state and understand result-backend reads.
+#     Sub-goals:
+#     - read task state without rerunning the task
+#     - distinguish queued, running, and finished states
+#     - understand that poll reads shared state, not worker-local state
 #     Suggested response shape:
 #     - `{"task_id": "...", "state": "PENDING", "ready": false}`
 #     - `{"task_id": "...", "state": "SUCCESS", "ready": true, "result": {...}}`
@@ -89,7 +98,7 @@ async def submit_job(duration_ms: int, request: Request):
 #     - Decide explicitly how to represent an unknown task id:
 #       backend-only `PENDING`, synthetic `UNKNOWN`, or HTTP `404`.
 #     - Make the first version small: state, readiness, result/error summary.
-@router.get("/jobs/{task_id}", name="get_job") # Polling the async task running.
+@router.get("/jobs/{task_id}", name="get_job")
 async def get_job(task_id: str):
     task = AsyncResult(task_id, app=celery_app)
     response = {"task_id": task.id, "state": task.state, "ready": task.ready()}
@@ -105,13 +114,19 @@ async def get_job(task_id: str):
 
     return response
 
-# 02. POST /tutorials/celery-redis/jobs/retry-demo
+# 03. POST /tutorials/celery-redis/jobs/retry-demo
 #     Learning goal: model transient failure, retry, and idempotency.
+#     Sub-goals:
+#     - see that one task body may run more than once
+#     - identify the duplicate-sensitive side effect
+#     - protect that side effect with a business idempotency key
 #     Suggested request shape:
-#     - force one deterministic transient failure so retry behavior is visible.
+#     - accept a business input like `business_id` once you move past the toy version
+#     - force one deterministic transient failure so retry behavior is visible
 #     Suggested response shape:
-#     - immediate `202` with task id, plus a note that retries are expected.
+#     - immediate `202` with task id, plus a note that retries are expected
 #     Hints:
+#     - Learn retry first, then add idempotency on top.
 #     - Put retry behavior in the task body, not in the API route.
 #     - Make the side effect duplicate-safe before enabling retry.
 #     - Persist or derive an idempotency key from business input, not just task id.
@@ -124,7 +139,7 @@ async def retry_demo(request: Request):
         duration_ms=5000,
     )
 
-# 03. POST /tutorials/celery-redis/jobs/progress-demo
+# 04. POST /tutorials/celery-redis/jobs/progress-demo
 #     Learning goal: expose stage-by-stage job progress.
 #     Suggested progress model:
 #     - `queued -> fetch -> process -> store -> success`
@@ -141,7 +156,7 @@ async def progress_demo(request: Request):
         duration_ms=5000,
     )
 
-# 04. POST /tutorials/celery-redis/jobs/fanout
+# 05. POST /tutorials/celery-redis/jobs/fanout
 #     Learning goal: model group / chord style fan-out and fan-in.
 #     Suggested response shape:
 #     - parent workflow id, child task ids, and a poll target for aggregate state.
@@ -150,13 +165,6 @@ async def progress_demo(request: Request):
 #     - Only add a chord callback after the child-result contract is stable.
 #     - Decide how one-child failure affects the aggregate result before coding.
 
-# 05. POST /tutorials/celery-redis/beat/tick
-#     Learning goal: understand scheduler publish versus worker execution.
-#     Hints:
-#     - If you implement this route, keep it educational: inspect schedule config,
-#       trigger a one-off publish, or explain the next scheduled run.
-#     - Do not blur beat and worker roles. Beat schedules; workers execute.
-#     - Document what prevents overlapping scheduled runs.
 
 # 06. GET /tutorials/celery-redis/queues/stats
 #     Learning goal: inspect queue depth, worker ownership, and backlog.
@@ -167,7 +175,15 @@ async def progress_demo(request: Request):
 #     - Separate "messages waiting" from "tasks currently executing".
 #     - This route is for observability, not for mutating queue state.
 
-# 07. POST /tutorials/celery-redis/streams/compare
+# 07. POST /tutorials/celery-redis/beat/tick
+#     Learning goal: understand scheduler publish versus worker execution.
+#     Hints:
+#     - If you implement this route, keep it educational: inspect schedule config,
+#       trigger a one-off publish, or explain the next scheduled run.
+#     - Do not blur beat and worker roles. Beat schedules; workers execute.
+#     - Document what prevents overlapping scheduled runs.
+
+# 08. POST /tutorials/celery-redis/streams/compare
 #     Learning goal: explain when Redis Streams fit better than Celery tasks.
 #     Suggested output:
 #     - side-by-side comparison for task queue vs event-log workload.

@@ -1,4 +1,4 @@
-# 04: Fan-Out And Fan-In
+# 05: Fan-Out And Fan-In
 
 Date: 2026-04-12
 

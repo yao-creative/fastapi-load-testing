@@ -1,14 +1,17 @@
 # Celery + Redis Overview
 
-Date: 2026-04-12
+Date: 2026-04-14
 
 Goal: build the right runtime mental model before implementing anything.
 
 This tutorial track is organized like this:
 
 - `00` is the overview.
-- `01` through `08` are the actual exercises and interview-style prompts.
+- `01` is a beginner architecture checkpoint.
+- `02` through `09` are the actual exercises and interview-style prompts.
 - The API file for this track is intentionally left unimplemented so you can fill it in yourself later from the docs.
+
+If you do not yet have a clear picture of broker, worker, backend, and API boundaries, stop after `01` and make that mental model boringly clear first. That confusion will compound later in retries, routing, and observability.
 
 
 ## Runtime model
@@ -32,6 +35,13 @@ Important hierarchy:
 - `celery beat` publishes scheduled tasks. Workers execute them.
 - Retries mean the task body may run more than once.
 - Idempotency matters as soon as retries or redelivery exist.
+
+Beginner shortcut:
+
+- API process: accepts the request and publishes a task.
+- Worker process: actually runs the task code.
+- Redis broker: holds queued work.
+- Redis result backend: holds task status and result.
 
 
 ## Sequence diagrams
@@ -125,9 +135,22 @@ Suggested route order:
 3. `POST /tutorials/celery-redis/jobs/retry-demo`
 4. `POST /tutorials/celery-redis/jobs/progress-demo`
 5. `POST /tutorials/celery-redis/jobs/fanout`
-6. `POST /tutorials/celery-redis/beat/tick`
-7. `GET /tutorials/celery-redis/queues/stats`
+6. `GET /tutorials/celery-redis/queues/stats`
+7. `POST /tutorials/celery-redis/beat/tick`
 8. `POST /tutorials/celery-redis/streams/compare`
+
+Suggested learning order:
+
+1. `00-overview.md`
+2. `01-what-runs-where.md`
+3. `02-submit-and-poll.md`
+4. `03-retries-and-idempotency.md`
+5. `04-progress-reporting.md`
+6. `05-fanout-and-fanin.md`
+7. `06-queue-routing-and-isolation.md`
+8. `07-periodic-jobs-and-beat.md`
+9. `08-observability-and-failure-diagnosis.md`
+10. `09-celery-vs-redis-streams.md`
 
 
 ## Official references
@@ -168,8 +191,9 @@ docs/
  └ tutorials/
     └ celery-redis/
        ├ 00-overview.md
-       ├ 01-submit-and-poll.md
-       ├ 02-retries-and-idempotency.md
+       ├ 01-what-runs-where.md
+       ├ 02-submit-and-poll.md
+       ├ 03-retries-and-idempotency.md
        └ ...
 docker-compose.yml
 ```
@@ -188,6 +212,7 @@ Suggested setup order:
 2. Add `app/core/celery_app.py`.
 3. Add one small task module in `app/tasks/`.
 4. Add Redis and worker services in `docker-compose.yml`.
-5. Only then implement `01-submit-and-poll`.
+5. Complete `01-what-runs-where` as a naming and architecture exercise.
+6. Only then implement `02-submit-and-poll`.
 
 This belongs in `00` because folder shape is part of the overview, not a later exercise.

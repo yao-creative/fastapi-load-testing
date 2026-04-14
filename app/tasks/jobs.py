@@ -8,9 +8,10 @@ Suggested first tasks to add here:
 - a progress-reporting demo task for `03`
 """
 import time
-
+import logging
 from app.core.celery_app import celery_app
 
+logger = logging.getLogger(__name__)
 
 # Router-tracked tutorial 01 job task: submit-and-poll.
 @celery_app.task
@@ -27,7 +28,7 @@ def simulate_background_work(duration_ms: int):
 def simulate_background_work_with_failure(self, duration_ms: int):
     attempt = self.request.retries + 1
     transient_error = RuntimeError("Simulated transient failure")
-
+    logger.info(f"Simulating background work with failure. Attempt: {attempt}, Max retries: {self.max_retries}")
     self.update_state(
         state="PROGRESS",
         meta={
