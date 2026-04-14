@@ -4,6 +4,8 @@ services:
       context: .
     cpus: "1.0"
     mem_limit: "512m"
+    depends_on:
+      - redis
     ports:
       - "8000:8000"
     # `--reload` is incompatible with `--workers`; use two worker processes as in the Dockerfile.
@@ -31,6 +33,13 @@ services:
           path: ./uv.lock
         - action: rebuild
           path: ./Dockerfile
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - DEFAULT_CELERY_QUEUE=jobs
+      - HEAVY_CELERY_QUEUE=pipelines
+      - PERIODIC_CELERY_QUEUE=periodic
 
   locust:
     build:
@@ -74,7 +83,7 @@ services:
 
   worker:
     build: .
-    command: celery -A app.core.celery_app worker -l info
+    command: uv run celery -A app.core.celery_app worker -l info
     depends_on:
       - redis
     develop:
@@ -98,7 +107,7 @@ services:
 
   beat:
     build: .
-    command: celery -A app.core.celery_app beat -l info
+    command: uv run celery -A app.core.celery_app beat -l info
     depends_on:
       - redis
     develop:

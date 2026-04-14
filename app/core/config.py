@@ -2,22 +2,33 @@
 Configuration skeleton for the tutorial track.
 
 Values can be overridden using environment variables for real deployments.
+Load environment variables from an .env file if present.
 """
 
-from dataclasses import dataclass
-from os import getenv
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import List
+from pathlib import Path
+from dotenv import load_dotenv
 
+# Load environment variables from an .env file if provided.
+env_file = Path(__file__).parent.parent.parent / ".env"
+if env_file.exists():
+    load_dotenv(dotenv_path=env_file, override=True)
 
-@dataclass(slots=True)
-class Settings:
+class Settings(BaseSettings):
     # Celery/Redis configuration
-    redis_host: str = getenv("REDIS_HOST", "localhost")
-    redis_port: int = int(getenv("REDIS_PORT", "6379"))
-    redis_db: int = int(getenv("REDIS_DB", "0"))
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_db: int = 0
 
-    default_celery_queue: str = getenv("DEFAULT_CELERY_QUEUE", "jobs")
-    heavy_celery_queue: str = getenv("HEAVY_CELERY_QUEUE", "pipelines")
-    periodic_celery_queue: str = getenv("PERIODIC_CELERY_QUEUE", "periodic")
+    default_celery_queue: str = "jobs"
+    heavy_celery_queue: str = "pipelines"
+    periodic_celery_queue: str = "periodic"
+
+    model_config = SettingsConfigDict(
+        env_file=str(env_file),
+        env_file_encoding='utf-8'
+    )
 
     @property
     def redis_broker_url(self) -> str:
@@ -28,7 +39,7 @@ class Settings:
         return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
     @property
-    def celery_task_queues(self) -> list[str]:
+    def celery_task_queues(self) -> List[str]:
         return [
             self.default_celery_queue,
             self.heavy_celery_queue,

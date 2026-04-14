@@ -35,6 +35,8 @@ celery_app.conf.update(
     result_serializer="json",
     accept_content=["json"],
     timezone="UTC",
+    result_persistent=True,   # Keeps results in Redis even after reboot
+    task_track_started=True,
     enable_utc=True,
     task_default_queue=settings.default_celery_queue,
     task_routes={
