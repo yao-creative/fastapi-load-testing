@@ -48,6 +48,26 @@ for service in "${required_services[@]}"; do
   done
 done
 
-curl --fail --silent http://127.0.0.1:8000/health >/dev/null
+for attempt in $(seq 1 30); do
+  if curl --fail --silent --show-error http://127.0.0.1:8000/health >/dev/null; then
+    echo "compose watch smoke check passed"
+    exit 0
+  fi
 
-echo "compose watch smoke check passed"
+  if ! kill -0 "$(cat "$pid_file")" 2>/dev/null; then
+    echo "compose watch exited before the API health check passed" >&2
+    cat "$log_file" >&2
+    exit 1
+  fi
+
+  if [ "$attempt" -eq 30 ]; then
+    echo "API health check did not succeed before timeout" >&2
+    cat "$log_file" >&2
+    exit 1
+  fi
+
+  sleep 2
+done
+
+echo "API health check loop exited unexpectedly" >&2
+exit 1
